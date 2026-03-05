@@ -1,8 +1,58 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar } from "@ghostclip/ui";
+import { ClipFeed } from "./views/ClipFeed";
+import { SettingsView } from "./views/SettingsView";
+import { DevicesView } from "./views/DevicesView";
+import { AnalyticsView } from "./views/AnalyticsView";
+
+const viewTitles: Record<string, string> = {
+  feed: "Alle Clips",
+  pinned: "Gepinnte Clips",
+  tags: "Tags",
+  collections: "Sammlungen",
+  smart: "Smart Clips",
+  today: "Heute",
+  week: "Diese Woche",
+  archive: "Archiv",
+  analytics: "Analytics",
+  devices: "Geraete",
+  settings: "Einstellungen",
+  account: "Account",
+};
 
 export function App() {
   const [activeView, setActiveView] = useState("feed");
+
+  // Listen for navigation from main process
+  useEffect(() => {
+    const api = (window as any).ghostclip;
+    if (!api) return;
+
+    // Would listen for IPC events here in production
+  }, []);
+
+  const renderView = () => {
+    switch (activeView) {
+      case "feed":
+        return <ClipFeed filter="all" />;
+      case "pinned":
+        return <ClipFeed filter="pinned" />;
+      case "today":
+        return <ClipFeed filter="today" />;
+      case "week":
+        return <ClipFeed filter="week" />;
+      case "archive":
+        return <ClipFeed filter="archive" />;
+      case "analytics":
+        return <AnalyticsView />;
+      case "devices":
+        return <DevicesView />;
+      case "settings":
+        return <SettingsView />;
+      default:
+        return <ClipFeed filter="all" />;
+    }
+  };
 
   return (
     <div className="flex h-screen bg-surface-DEFAULT">
@@ -16,15 +66,15 @@ export function App() {
           style={{ WebkitAppRegion: "no-drag" } as any}
         >
           <button
-            onClick={() => (window as any).ghostclip.minimize()}
+            onClick={() => (window as any).ghostclip?.minimize()}
             className="w-3 h-3 rounded-full bg-surface-500 hover:bg-yellow-500 transition-colors"
           />
           <button
-            onClick={() => (window as any).ghostclip.maximize()}
+            onClick={() => (window as any).ghostclip?.maximize()}
             className="w-3 h-3 rounded-full bg-surface-500 hover:bg-green-500 transition-colors"
           />
           <button
-            onClick={() => (window as any).ghostclip.close()}
+            onClick={() => (window as any).ghostclip?.close()}
             className="w-3 h-3 rounded-full bg-surface-500 hover:bg-red-500 transition-colors"
           />
         </div>
@@ -38,23 +88,10 @@ export function App() {
       {/* Main Content */}
       <main className="flex-1 pt-8 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-surface-900 mb-4">
-            {activeView === "feed" && "Alle Clips"}
-            {activeView === "pinned" && "Gepinnte Clips"}
-            {activeView === "tags" && "Tags"}
-            {activeView === "collections" && "Sammlungen"}
-            {activeView === "smart" && "Smart Clips"}
-            {activeView === "today" && "Heute"}
-            {activeView === "week" && "Diese Woche"}
-            {activeView === "archive" && "Archiv"}
-            {activeView === "analytics" && "Analytics"}
-            {activeView === "devices" && "Geraete"}
-            {activeView === "settings" && "Einstellungen"}
-            {activeView === "account" && "Account"}
+          <h1 className="text-xl font-bold text-surface-900 mb-4">
+            {viewTitles[activeView] || "GhostClip"}
           </h1>
-          <p className="text-surface-700">
-            GhostClip Desktop App — Content kommt in den naechsten Tasks.
-          </p>
+          {renderView()}
         </div>
       </main>
     </div>
