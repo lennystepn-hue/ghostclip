@@ -30,6 +30,15 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/crypto:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/node@25.3.3)
+
   packages/shared:
     dependencies:
       zod:
