@@ -69,6 +69,23 @@ export function initDb() {
       name TEXT NOT NULL,
       icon TEXT DEFAULT '📁',
       clip_ids TEXT DEFAULT '[]',
+      smart_rule TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Migration: add smart_rule column if missing
+  try {
+    db.exec(`ALTER TABLE collections ADD COLUMN smart_rule TEXT DEFAULT NULL`);
+  } catch {
+    // Column already exists
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role TEXT NOT NULL,
+      text TEXT NOT NULL,
       created_at TEXT NOT NULL
     )
   `);
@@ -208,6 +225,50 @@ export function deleteCollection(id: string) {
   db.prepare("DELETE FROM collections WHERE id = ?").run(id);
 }
 
+export function createSmartCollection(id: string, name: string, icon: string, rule: object) {
+  db.prepare("INSERT INTO collections (id, name, icon, smart_rule, created_at) VALUES (?, ?, ?, ?, ?)").run(
+    id, name, icon, JSON.stringify(rule), new Date().toISOString()
+  );
+}
+
+/** Evaluate a smart rule against all clips and return matching ones */
+export function getSmartCollectionClips(collectionId: string): any[] {
+  const row = db.prepare("SELECT smart_rule FROM collections WHERE id = ?").get(collectionId) as any;
+  if (!row?.smart_rule) return [];
+
+  const rule = JSON.parse(row.smart_rule);
+  // Rule format: { tag?: string, type?: string, mood?: string, contains?: string, minAge?: string, maxAge?: string }
+
+  let query = "SELECT * FROM clips WHERE archived = 0";
+  const params: any[] = [];
+
+  if (rule.tag) {
+    query += ` AND tags LIKE ?`;
+    params.push(`%"${rule.tag}"%`);
+  }
+  if (rule.type) {
+    query += ` AND type = ?`;
+    params.push(rule.type);
+  }
+  if (rule.mood) {
+    query += ` AND mood LIKE ?`;
+    params.push(`%${rule.mood}%`);
+  }
+  if (rule.contains) {
+    query += ` AND (content LIKE ? OR summary LIKE ?)`;
+    params.push(`%${rule.contains}%`, `%${rule.contains}%`);
+  }
+  if (rule.maxAge) {
+    query += ` AND created_at > datetime('now', ?)`;
+    params.push(`-${rule.maxAge}`);
+  }
+
+  query += " ORDER BY created_at DESC LIMIT 200";
+
+  const rows = db.prepare(query).all(...params) as ClipRow[];
+  return rows.map(rowToClip);
+}
+
 // Analytics
 export function getClipStats() {
   const total = (db.prepare("SELECT COUNT(*) as count FROM clips WHERE archived = 0").get() as any).count;
@@ -283,4 +344,52 @@ export function getClipsWithEmbeddings(): { id: string; embedding: number[]; sum
 // Clear all clips (panic button)
 export function clearAllClips() {
   db.prepare("DELETE FROM clips").run();
+}
+
+// Chat messages
+export function getChatMessages(limit = 100): { id: number; role: string; text: string; createdAt: string }[] {
+  return (db.prepare("SELECT * FROM chat_messages ORDER BY id DESC LIMIT ?").all(limit) as any[])
+    .reverse()
+    .map(r => ({ id: r.id, role: r.role, text: r.text, createdAt: r.created_at }));
+}
+
+export function addChatMessage(role: string, text: string) {
+  db.prepare("INSERT INTO chat_messages (role, text, created_at) VALUES (?, ?, ?)").run(role, text, new Date().toISOString());
+}
+
+export function clearChatHistory() {
+  db.prepare("DELETE FROM chat_messages").run();
+}
+
+// Import clips (skip duplicates by content_hash)
+export function importClips(clips: any[]): number {
+  let imported = 0;
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO clips (id, type, content, content_hash, summary, tags, mood, actions, sensitivity, source_app, pinned, archived, enriched, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const tx = db.transaction(() => {
+    for (const clip of clips) {
+      const result = stmt.run(
+        clip.id || crypto.randomUUID(),
+        clip.type || "text",
+        clip.content || "",
+        clip.contentHash || clip.content_hash || "",
+        clip.summary || null,
+        typeof clip.tags === "string" ? clip.tags : JSON.stringify(clip.tags || []),
+        clip.mood || null,
+        typeof clip.actions === "string" ? clip.actions : JSON.stringify(clip.actions || []),
+        clip.sensitivity || null,
+        clip.sourceApp || clip.source_app || null,
+        clip.pinned ? 1 : 0,
+        clip.archived ? 1 : 0,
+        clip.enriched ? 1 : 0,
+        clip.createdAt || clip.created_at || new Date().toISOString(),
+      );
+      if (result.changes > 0) imported++;
+    }
+  });
+  tx();
+  return imported;
 }

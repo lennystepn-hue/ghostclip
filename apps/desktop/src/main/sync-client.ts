@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { insertClip, updateClip, deleteClipById } from "./db";
+import { insertClip, updateClip, deleteClipById, getAllClips } from "./db";
 import { encryptContent, decryptContent, isEncryptionReady } from "./encryption";
 
 let socket: Socket | null = null;
@@ -27,18 +27,48 @@ export function connectSync(token: string, serverUrl: string = "http://localhost
   // Receive clips from other devices
   socket.on("clip:new", (data: any) => {
     console.log("Sync: received new clip from another device");
-    const clip = {
-      ...data,
-      content: isEncryptionReady() && data.encryptedContent
-        ? decryptContent(data.encryptedContent) || data.preview || ""
-        : data.content || data.preview || "",
-    };
+    const content = isEncryptionReady() && data.encryptedContent
+      ? decryptContent(data.encryptedContent) || data.preview || ""
+      : data.content || data.preview || "";
+
+    const clip = { ...data, content };
+
+    // Conflict resolution: check if clip with same hash already exists locally
+    const existing = getAllClips(9999).find(c => c.contentHash === clip.contentHash);
+    if (existing) {
+      // Same content — merge metadata (keep newer enrichment)
+      const existingTime = new Date(existing.createdAt).getTime();
+      const incomingTime = new Date(clip.createdAt).getTime();
+
+      if (clip.enriched && !existing.enriched) {
+        // Incoming has AI data, ours doesn't — take theirs
+        updateClip({ ...existing, tags: clip.tags, summary: clip.summary, mood: clip.mood, actions: clip.actions, sensitivity: clip.sensitivity, enriched: true });
+      } else if (incomingTime > existingTime && clip.enriched) {
+        // Incoming is newer and enriched — update our metadata
+        updateClip({ ...existing, tags: clip.tags, summary: clip.summary, mood: clip.mood, actions: clip.actions, sensitivity: clip.sensitivity });
+      }
+      // Otherwise keep our local version (ours is newer or both have same data)
+      console.log("Sync: duplicate clip merged by hash");
+      return;
+    }
+
     insertClip(clip);
   });
 
   socket.on("clip:update", (data: any) => {
     console.log("Sync: received clip update");
-    updateClip(data);
+    // Timestamp-based conflict: only apply if incoming is newer
+    const existing = getAllClips(9999).find(c => c.id === data.id);
+    if (existing) {
+      const localTime = new Date(existing.createdAt).getTime();
+      const remoteTime = new Date(data.createdAt || 0).getTime();
+      // Accept update if remote is enriched and local isn't, or remote is newer
+      if ((data.enriched && !existing.enriched) || remoteTime >= localTime) {
+        updateClip(data);
+      }
+    } else {
+      updateClip(data);
+    }
   });
 
   socket.on("clip:delete", (data: { id: string }) => {
@@ -53,7 +83,12 @@ export function connectSync(token: string, serverUrl: string = "http://localhost
   // Heartbeat every 30 seconds
   setInterval(() => {
     if (socket?.connected) {
-      socket.emit("device:heartbeat", { timestamp: Date.now() });
+      socket.emit("device:heartbeat", {
+        timestamp: Date.now(),
+        clipCount: getAllClips(99999).length,
+        platform: process.platform,
+        hostname: require("os").hostname(),
+      });
     }
   }, 30_000);
 }

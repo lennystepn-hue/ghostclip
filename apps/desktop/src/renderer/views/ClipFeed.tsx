@@ -17,6 +17,18 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
   const [search, setSearch] = useState("");
   const [semanticMode, setSemanticMode] = useState(false);
   const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
+  const [replyToast, setReplyToast] = useState<{ clipId: string; replies: any[] } | null>(null);
+
+  // Listen for auto-reply suggestions
+  useEffect(() => {
+    const api = (window as any).ghostclip;
+    if (!api?.onReplySuggestions) return;
+    const cleanup = api.onReplySuggestions((data: any) => {
+      setReplyToast(data);
+      setTimeout(() => setReplyToast(null), 15000);
+    });
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     if (!semanticMode || !search.trim()) {
@@ -105,6 +117,42 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
           AI
         </button>
       </div>
+
+      {/* Auto-Reply Toast */}
+      {replyToast && replyToast.replies?.length > 0 && (
+        <div style={{
+          marginBottom: "12px", padding: "12px 16px", borderRadius: "12px",
+          background: "linear-gradient(135deg, rgba(66,99,235,0.12), rgba(168,85,247,0.08))",
+          border: "1px solid rgba(92,124,250,0.2)",
+          animation: "fadeIn 0.3s ease-out",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#91a7ff" }}>
+              Antwortvorschlaege erkannt
+            </span>
+            <button onClick={() => setReplyToast(null)} style={{
+              background: "none", border: "none", color: "#5c5c75", cursor: "pointer", fontSize: "12px",
+            }}>✕</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {replyToast.replies.slice(0, 3).map((r: any) => (
+              <button key={r.id} onClick={() => {
+                (window as any).ghostclip?.writeClipboard?.(r.text);
+                setReplyToast(null);
+              }} style={{
+                textAlign: "left", padding: "8px 12px", borderRadius: "8px",
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                color: "#c4c4d4", fontSize: "12px", cursor: "pointer", lineHeight: 1.4,
+              }}>
+                <span style={{ fontSize: "9px", color: "#748ffc", fontWeight: 600, textTransform: "uppercase" }}>
+                  {r.tone}
+                </span>
+                <br />{r.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Clips */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -195,13 +243,30 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
               </div>
             </div>
 
-            {/* Sensitivity warning */}
-            {clip.sensitivity && clip.sensitivity !== "low" && (
+            {/* Sensitivity warning + auto-expire countdown */}
+            {clip.sensitivity && ["critical", "high"].includes(clip.sensitivity) && (
               <div style={{
                 fontSize: "10px",
                 color: clip.sensitivity === "critical" ? "#ef4444" : "#f97316",
-                marginTop: "4px",
+                marginTop: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
               }}>
+                <span style={{
+                  display: "inline-block",
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: clip.sensitivity === "critical" ? "#ef4444" : "#f97316",
+                  animation: "pulse 1.5s infinite",
+                }} />
+                {clip.sensitivity === "critical" ? "KRITISCH" : "Sensibel"} — wird automatisch geloescht
+                <AutoExpireTimer createdAt={clip.createdAt} />
+              </div>
+            )}
+            {clip.sensitivity && clip.sensitivity !== "low" && !["critical", "high"].includes(clip.sensitivity) && (
+              <div style={{ fontSize: "10px", color: "#5c5c75", marginTop: "4px" }}>
                 Sensibilitaet: {clip.sensitivity}
               </div>
             )}
@@ -215,6 +280,38 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
         )}
       </div>
     </div>
+  );
+}
+
+function AutoExpireTimer({ createdAt }: { createdAt: string }) {
+  const [remaining, setRemaining] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const created = new Date(createdAt).getTime();
+      const expiresAt = created + 5 * 60 * 1000; // 5 min
+      const left = Math.max(0, expiresAt - Date.now());
+      if (left <= 0) {
+        setRemaining("abgelaufen");
+      } else {
+        const mins = Math.floor(left / 60000);
+        const secs = Math.floor((left % 60000) / 1000);
+        setRemaining(`${mins}:${secs.toString().padStart(2, "0")}`);
+      }
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [createdAt]);
+
+  return (
+    <span style={{
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: "10px",
+      fontWeight: 600,
+      color: remaining === "abgelaufen" ? "#ef4444" : "#f97316",
+    }}>
+      ({remaining})
+    </span>
   );
 }
 

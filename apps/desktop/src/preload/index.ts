@@ -15,6 +15,7 @@ const api = {
   semanticSearch: (query: string) => ipcRenderer.invoke("clips:semanticSearch", query),
   writeClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
   clearAllClips: () => ipcRenderer.invoke("clips:clearAll"),
+  importClips: (clips: any[]) => ipcRenderer.invoke("clips:import", clips),
 
   // Clip events
   onClipNew: (callback: (clip: any) => void) => {
@@ -32,8 +33,23 @@ const api = {
 
   // AI
   getReplies: (message: string, context?: string) => ipcRenderer.invoke("ai:replies", message, context),
+  onReplyText: (callback: (text: string) => void) => {
+    ipcRenderer.on("reply:setText", (_event, text) => callback(text));
+    return () => ipcRenderer.removeAllListeners("reply:setText");
+  },
+  onReplySuggestions: (callback: (replies: any[]) => void) => {
+    ipcRenderer.on("reply:suggestions", (_event, replies) => callback(replies));
+    return () => ipcRenderer.removeAllListeners("reply:suggestions");
+  },
   aiChat: (message: string) => ipcRenderer.invoke("ai:chat", message),
   aiVision: (base64Image: string) => ipcRenderer.invoke("ai:vision", base64Image),
+
+  // Chat history
+  getChatHistory: () => ipcRenderer.invoke("chat:history"),
+  clearChatHistory: () => ipcRenderer.invoke("chat:clear"),
+
+  // Devices
+  getDevices: () => ipcRenderer.invoke("devices:list"),
 
   // Analytics
   getStats: () => ipcRenderer.invoke("analytics:stats"),
@@ -48,6 +64,8 @@ const api = {
   deleteCollection: (id: string) => ipcRenderer.invoke("collections:delete", id),
   addClipToCollection: (collectionId: string, clipId: string) => ipcRenderer.invoke("collections:addClip", collectionId, clipId),
   removeClipFromCollection: (collectionId: string, clipId: string) => ipcRenderer.invoke("collections:removeClip", collectionId, clipId),
+  createSmartCollection: (name: string, icon: string, rule: object) => ipcRenderer.invoke("collections:createSmart", name, icon, rule),
+  getSmartCollectionClips: (collectionId: string) => ipcRenderer.invoke("collections:smartClips", collectionId),
 
   // Settings
   getSettings: () => ipcRenderer.invoke("settings:get"),

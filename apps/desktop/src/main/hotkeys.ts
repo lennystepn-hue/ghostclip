@@ -1,5 +1,6 @@
 import { globalShortcut, BrowserWindow } from "electron";
 import { toggleQuickPanel } from "./quick-panel";
+import { showReplyPanel } from "./reply-panel";
 
 export function registerHotkeys(mainWindow: BrowserWindow | null) {
   // Ctrl+Shift+V: Quick Panel
@@ -14,9 +15,9 @@ export function registerHotkeys(mainWindow: BrowserWindow | null) {
     mainWindow?.focus();
   });
 
-  // Ctrl+Shift+R: Reply Suggestion
+  // Ctrl+Shift+R: Reply Suggestion (reads X11 PRIMARY selection)
   globalShortcut.register("CmdOrCtrl+Shift+R", () => {
-    mainWindow?.webContents.send("shortcut:reply");
+    showReplyPanel();
   });
 
   // Ctrl+Shift+P: Pin last clip

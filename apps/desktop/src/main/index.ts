@@ -5,10 +5,11 @@ import { ClipboardWatcher } from "./clipboard-watcher";
 import { createTray } from "./tray";
 import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
 import { toggleQuickPanel } from "./quick-panel";
-import { notifyClipCaptured } from "./notifications";
+import { notifyClipCaptured, notify } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
 import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
+import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -33,6 +34,12 @@ import {
   clearAllClips,
   updateClipEmbedding,
   getClipsWithEmbeddings,
+  getChatMessages,
+  addChatMessage,
+  clearChatHistory,
+  createSmartCollection,
+  getSmartCollectionClips,
+  importClips,
 } from "./db";
 
 // Allow running as root (dev/container environments)
@@ -226,6 +233,32 @@ app.whenReady().then(() => {
         if (embedding) {
           updateClipEmbedding(clip.id, embedding);
         }
+
+        // Auto-detect messages: if mood suggests communication, generate reply suggestions
+        const messageMoods = ["kommunikation", "nachricht", "frage", "anfrage", "bitte", "einladung"];
+        const isMessage = messageMoods.some(m => clip.mood?.toLowerCase().includes(m))
+          || clip.tags.some((t: string) => ["nachricht", "email", "chat", "message", "frage"].includes(t.toLowerCase()));
+
+        if (isMessage) {
+          try {
+            const { generateReplies } = await import("@ghostclip/ai-client");
+            const replies = await generateReplies({ message: clip.content.slice(0, 1000), oauthToken });
+            if (replies.length > 0) {
+              mainWindow?.webContents.send("reply:suggestions", { clipId: clip.id, replies });
+              notify({
+                type: "reply",
+                title: "Antwortvorschlaege bereit",
+                body: `${replies[0].text.slice(0, 60)}...`,
+                onClick: () => {
+                  createReplyPanel(clip.content.slice(0, 500));
+                },
+              });
+              console.log(`Auto-reply suggestions for: "${clip.summary}"`);
+            }
+          } catch (err: any) {
+            console.error("Auto-reply failed:", err.message);
+          }
+        }
       } catch (err: any) {
         console.error("AI enrichment failed:", err.message);
       }
@@ -349,22 +382,94 @@ app.whenReady().then(() => {
     }
   });
 
-  // IPC: AI Chat
+  // IPC: AI Chat — full DB access: recent clips + keyword search across entire history
   ipcMain.handle("ai:chat", async (_e, message: string) => {
     const token = getOAuthToken();
     if (!token) return "OAuth Token abgelaufen. Bitte Claude CLI neu authentifizieren.";
     try {
       const { chat } = await import("@ghostclip/ai-client");
-      const recentClips = getAllClips(50);
-      const clipContext = recentClips.map(c =>
-        `[${c.type}] ${c.summary || c.content?.slice(0, 100)} (Tags: ${c.tags?.join(", ") || "none"}) - ${c.createdAt}`
-      ).join("\n");
-      const response = await chat({ message, oauthToken: token, clipContext });
+
+      // 1. Always include recent 20 clips as immediate context
+      const recentClips = getAllClips(20);
+
+      // 2. Extract search keywords from user message and search entire DB
+      const keywords = message
+        .replace(/[?!.,;:()]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 2)
+        .slice(0, 5);
+
+      const searchResults: any[] = [];
+      const seenIds = new Set(recentClips.map(c => c.id));
+      for (const keyword of keywords) {
+        const results = dbSearchClips(keyword);
+        for (const clip of results) {
+          if (!seenIds.has(clip.id)) {
+            seenIds.add(clip.id);
+            searchResults.push(clip);
+          }
+        }
+      }
+
+      // Format clip for context
+      const formatClip = (c: any) => {
+        const parts = [`[${c.type}] ${c.createdAt}`];
+        if (c.summary) parts.push(`Summary: ${c.summary}`);
+        if (c.tags?.length) parts.push(`Tags: ${c.tags.join(", ")}`);
+        if (c.mood) parts.push(`Mood: ${c.mood}`);
+        if (c.content) parts.push(`Content: ${c.content.slice(0, 800)}`);
+        return parts.join(" | ");
+      };
+
+      let clipContext = "=== LETZTE 20 CLIPS ===\n" + recentClips.map(formatClip).join("\n---\n");
+
+      if (searchResults.length > 0) {
+        clipContext += `\n\n=== SUCHERGEBNISSE AUS GESAMTER DB (${searchResults.length} Treffer) ===\n`
+          + searchResults.slice(0, 30).map(formatClip).join("\n---\n");
+      }
+
+      // Include conversation history for context
+      const history = getChatMessages(20);
+      const conversationHistory = history.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.text,
+      }));
+
+      const response = await chat({ message, oauthToken: token, clipContext, conversationHistory });
+
+      // Persist both messages
+      addChatMessage("user", message);
+      addChatMessage("assistant", response);
+
       return response;
     } catch (err: any) {
       console.error("AI Chat failed:", err.message);
-      return "Fehler: " + err.message;
+      // Still save user message so history is consistent
+      addChatMessage("user", message);
+      const errMsg = "Fehler: " + err.message;
+      addChatMessage("assistant", errMsg);
+      return errMsg;
     }
+  });
+
+  // IPC: Chat history
+  ipcMain.handle("chat:history", () => getChatMessages(200));
+  ipcMain.handle("chat:clear", () => { clearChatHistory(); return true; });
+
+  // IPC: Device info (local device)
+  ipcMain.handle("devices:list", () => {
+    const hostname = require("os").hostname();
+    const platform = process.platform === "linux" ? "linux" : process.platform === "darwin" ? "mac" : "windows";
+    const clipCount = (getAllClips(99999)).length;
+    return [{
+      id: "local",
+      name: hostname,
+      platform,
+      isOnline: true,
+      lastSync: new Date().toISOString(),
+      clipCount,
+      isCurrent: true,
+    }];
   });
 
   // IPC: Vision/OCR
@@ -397,6 +502,12 @@ app.whenReady().then(() => {
   ipcMain.handle("collections:delete", (_e, id: string) => { deleteCollection(id); return true; });
   ipcMain.handle("collections:addClip", (_e, collectionId: string, clipId: string) => { addClipToCollection(collectionId, clipId); return true; });
   ipcMain.handle("collections:removeClip", (_e, collectionId: string, clipId: string) => { removeClipFromCollection(collectionId, clipId); return true; });
+  ipcMain.handle("collections:createSmart", (_e, name: string, icon: string, rule: object) => {
+    const id = crypto.randomUUID();
+    createSmartCollection(id, name, icon, rule);
+    return { id, name, icon, smartRule: rule, clipIds: [], createdAt: new Date().toISOString() };
+  });
+  ipcMain.handle("collections:smartClips", (_e, collectionId: string) => getSmartCollectionClips(collectionId));
 
   // IPC: Settings
   ipcMain.handle("settings:get", () => getAllSettings());
@@ -410,6 +521,12 @@ app.whenReady().then(() => {
 
   // IPC: Clear all clips (panic button)
   ipcMain.handle("clips:clearAll", () => { clearAllClips(); return true; });
+
+  // IPC: Import clips from JSON
+  ipcMain.handle("clips:import", (_e, clips: any[]) => {
+    const imported = importClips(clips);
+    return imported;
+  });
 
   // Auto-expire sensitive clips every 60 seconds
   setInterval(() => {

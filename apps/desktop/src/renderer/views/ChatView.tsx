@@ -7,12 +7,33 @@ interface Message {
 }
 
 export function ChatView() {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", text: "Hallo! Ich bin dein GhostClip AI Assistent. Frag mich was ueber deine Clips — z.B. \"Was habe ich heute kopiert?\" oder \"Finde alle Links von dieser Woche\".", timestamp: new Date().toISOString() },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const api = (window as any).ghostclip;
+
+  // Load persisted chat history on mount
+  useEffect(() => {
+    if (historyLoaded) return;
+    api?.getChatHistory?.().then((history: any[]) => {
+      if (history && history.length > 0) {
+        setMessages(history.map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          text: m.text,
+          timestamp: m.createdAt,
+        })));
+      } else {
+        setMessages([{
+          role: "assistant",
+          text: "Hallo! Ich bin dein GhostClip AI Assistent. Ich habe Zugriff auf deine gesamte Clipboard-Historie. Frag mich was — z.B. \"Was habe ich heute kopiert?\", \"Finde alle Links\" oder \"Was war der Code-Snippet von gestern?\".",
+          timestamp: new Date().toISOString(),
+        }]);
+      }
+      setHistoryLoaded(true);
+    });
+  }, [historyLoaded]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -26,7 +47,6 @@ export function ChatView() {
     setLoading(true);
 
     try {
-      const api = (window as any).ghostclip;
       const response = await api?.aiChat?.(userMsg.text);
       setMessages(prev => [...prev, {
         role: "assistant",
@@ -44,11 +64,36 @@ export function ChatView() {
     }
   };
 
+  const clearHistory = async () => {
+    await api?.clearChatHistory?.();
+    setMessages([{
+      role: "assistant",
+      text: "Chat-Verlauf geloescht. Wie kann ich dir helfen?",
+      timestamp: new Date().toISOString(),
+    }]);
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8", marginBottom: "16px", flexShrink: 0 }}>
-        AI Chat
-      </h2>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexShrink: 0 }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8" }}>
+          AI Chat
+        </h2>
+        <button
+          onClick={clearHistory}
+          style={{
+            padding: "6px 12px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(34,34,46,0.4)",
+            color: "#5c5c75",
+            fontSize: "11px",
+            cursor: "pointer",
+          }}
+        >
+          Verlauf loeschen
+        </button>
+      </div>
 
       <div style={{
         flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px",

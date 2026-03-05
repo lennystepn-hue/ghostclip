@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clipboard, Shield, Zap, Brain, Monitor, Globe, ArrowRight, Check, Ghost, Sparkles, Lock, Cpu } from "lucide-react";
+import { Clipboard, Shield, Zap, Brain, Monitor, Globe, ArrowRight, Check, Ghost, Sparkles, Lock, Cpu, Download, Apple, MonitorDot } from "lucide-react";
 
 function GhostLogo({ className = "w-8 h-8" }: { className?: string }) {
   return (
@@ -32,12 +32,13 @@ export default function LandingPage() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/auth/login" className="px-4 py-2 text-sm text-surface-800 hover:text-white transition-colors duration-200 font-medium">
-              Login
-            </Link>
-            <Link href="/auth/register" className="px-5 py-2.5 text-sm rounded-xl bg-ghost-600 text-white hover:bg-ghost-500 transition-all duration-200 font-medium shadow-glow hover:shadow-glow-lg">
-              Kostenlos starten
-            </Link>
+            <a href="https://github.com/lennystepn-hue/ghostclip" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm text-surface-800 hover:text-white transition-colors duration-200 font-medium">
+              GitHub
+            </a>
+            <a href="#download" className="px-5 py-2.5 text-sm rounded-xl bg-ghost-600 text-white hover:bg-ghost-500 transition-all duration-200 font-medium shadow-glow hover:shadow-glow-lg flex items-center gap-2">
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
           </div>
         </nav>
 
@@ -60,10 +61,10 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-            <Link href="/auth/register" className="group px-8 py-3.5 rounded-2xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center gap-2">
-              Kostenlos starten
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
+            <a href="#download" className="group px-8 py-3.5 rounded-2xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Kostenlos downloaden
+            </a>
             <a href="#features" className="px-8 py-3.5 rounded-2xl glass-card text-surface-900 font-semibold hover:text-white transition-all duration-300">
               Features ansehen
             </a>
@@ -147,7 +148,7 @@ export default function LandingPage() {
               { icon: Lock, title: "E2E Verschluesselt", desc: "AES-256-GCM Verschluesselung. Dein Master Key verlasst nie dein Geraet. Wir koennen deine Clips nie lesen.", color: "from-accent-cyan to-ghost-500" },
               { icon: Zap, title: "Realtime Sync", desc: "Unter 500ms Latenz. WebSocket-basiert. Kopiere auf dem Laptop, paste auf dem Desktop — sofort.", color: "from-accent-orange to-accent-pink" },
               { icon: Monitor, title: "Cross-Platform", desc: "Windows, Mac, Linux — ein Account, ueberall deine Clips. Electron Desktop App + Web Dashboard.", color: "from-accent-green to-accent-cyan" },
-              { icon: Globe, title: "Web Dashboard", desc: "Durchsuche, filtere und analysiere deine Clips von ueberall. AI Chat fragt deine Clip-Historie ab.", color: "from-accent-purple to-accent-pink" },
+              { icon: Globe, title: "AI Chat", desc: "Frag die AI ueber deine gesamte Clipboard-Historie. Findet Links, Nachrichten, Code — alles was du je kopiert hast.", color: "from-accent-purple to-accent-pink" },
               { icon: Cpu, title: "Smart Replies", desc: "Kopiere eine Nachricht — bekomme sofort drei Antwortvorschlaege in deinem persoenlichen Stil.", color: "from-ghost-400 to-ghost-700" },
             ].map(({ icon: Icon, title, desc, color }, i) => (
               <div
@@ -187,23 +188,23 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Pricing */}
-        <section className="px-6 py-24 max-w-5xl mx-auto" id="pricing">
+        {/* Download */}
+        <section className="px-6 py-24 max-w-5xl mx-auto" id="download">
           <div className="text-center mb-16">
             <h2 className="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Simple Pricing
+              Download GhostClip
             </h2>
-            <p className="text-surface-800 mt-4 text-lg font-light">Starte kostenlos. Upgrade wenn du mehr brauchst.</p>
+            <p className="text-surface-800 mt-4 text-lg font-light">Kostenlos. Open Source. Fuer alle Plattformen.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { plan: "Free", price: "0", features: ["1.000 Clips", "1 Geraet", "AI-Klassifizierung", "Lokale Suche"], cta: "Kostenlos starten" },
-              { plan: "Pro", price: "6", features: ["Unlimited Clips", "10 Geraete", "Cloud Sync", "Reply-Suggestions", "Web Dashboard", "AI Chat", "Semantische Suche"], cta: "Pro werden", highlight: true },
-              { plan: "Team", price: "12", features: ["Alles aus Pro", "Shared Collections", "Team Dashboard", "SSO / SAML", "Audit Log"], cta: "Team starten" },
-            ].map(({ plan, price, features, cta, highlight }) => (
+              { platform: "Linux", icon: MonitorDot, formats: ["AppImage", "deb"], desc: "Ubuntu, Debian, Fedora, Arch — alle gaengigen Distros.", primary: "AppImage", highlight: true },
+              { platform: "macOS", icon: Apple, formats: ["dmg"], desc: "Intel & Apple Silicon. macOS 12+ empfohlen.", primary: "dmg" },
+              { platform: "Windows", icon: Monitor, formats: ["exe"], desc: "Windows 10/11. Installer mit Auto-Update.", primary: "exe" },
+            ].map(({ platform, icon: Icon, formats, desc, primary, highlight }) => (
               <div
-                key={plan}
+                key={platform}
                 className={`rounded-2xl p-7 transition-all duration-300 ${
                   highlight
                     ? "glass-card border-ghost-500/30 shadow-glow relative"
@@ -212,35 +213,37 @@ export default function LandingPage() {
               >
                 {highlight && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-ghost-600 text-white text-xs font-semibold">
-                    Beliebt
+                    Empfohlen
                   </div>
                 )}
-                <h3 className="font-display text-lg font-semibold text-white">{plan}</h3>
-                <p className="mt-3">
-                  <span className="font-display text-4xl font-bold text-white">{price}&euro;</span>
-                  <span className="text-surface-700 text-sm ml-1">/Monat</span>
-                </p>
-                <ul className="mt-7 space-y-3">
-                  {features.map(f => (
-                    <li key={f} className="text-sm text-surface-800 flex items-center gap-2.5">
-                      <Check className="w-4 h-4 text-ghost-400 shrink-0" />
-                      {f}
-                    </li>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-ghost-500 to-ghost-700 flex items-center justify-center mb-5">
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-white">{platform}</h3>
+                <p className="text-sm text-surface-700 mt-2 mb-6 leading-relaxed">{desc}</p>
+                <div className="space-y-2">
+                  {formats.map(f => (
+                    <a
+                      key={f}
+                      href={`https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip.${f}`}
+                      className={`flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                        f === primary
+                          ? "bg-ghost-600 text-white hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg"
+                          : "glass-card text-surface-900 hover:text-white hover:border-white/15"
+                      }`}
+                    >
+                      <Download className="w-4 h-4" />
+                      .{f} herunterladen
+                    </a>
                   ))}
-                </ul>
-                <Link
-                  href="/auth/register"
-                  className={`block text-center mt-8 px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    highlight
-                      ? "bg-ghost-600 text-white hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg"
-                      : "glass-card text-surface-900 hover:text-white hover:border-white/15"
-                  }`}
-                >
-                  {cta}
-                </Link>
+                </div>
               </div>
             ))}
           </div>
+
+          <p className="text-center text-xs text-surface-600 mt-8">
+            Alle Features inklusive. Keine Registrierung noetig. Deine Daten bleiben lokal.
+          </p>
         </section>
 
         {/* CTA */}
@@ -255,10 +258,10 @@ export default function LandingPage() {
               <p className="text-surface-800 mb-8 text-lg font-light">
                 Installiere GhostClip und erlebe wie AI dein Clipboard transformiert.
               </p>
-              <Link href="/auth/register" className="group inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 text-lg">
-                Jetzt starten
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              <a href="#download" className="group inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 text-lg">
+                <Download className="w-5 h-5" />
+                Jetzt downloaden
+              </a>
             </div>
           </div>
         </section>
@@ -272,8 +275,8 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-6 text-xs text-surface-600">
               <a href="#features" className="hover:text-surface-800 transition-colors">Features</a>
-              <a href="#pricing" className="hover:text-surface-800 transition-colors">Pricing</a>
-              <a href="https://github.com/lennystepn-hue/ghostclip" className="hover:text-surface-800 transition-colors">GitHub</a>
+              <a href="#download" className="hover:text-surface-800 transition-colors">Download</a>
+              <a href="https://github.com/lennystepn-hue/ghostclip" target="_blank" rel="noopener noreferrer" className="hover:text-surface-800 transition-colors">GitHub</a>
             </div>
             <span className="text-xs text-surface-600">&copy; 2026 GhostClip. Open Source.</span>
           </div>

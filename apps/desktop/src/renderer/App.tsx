@@ -9,6 +9,7 @@ import { CollectionsView } from "./views/CollectionsView";
 import { SmartView } from "./views/SmartView";
 import { ChatView } from "./views/ChatView";
 import { QuickPanelView } from "./views/QuickPanelView";
+import { ReplyPanelView } from "./views/ReplyPanelView";
 
 const viewTitles: Record<string, string> = {
   feed: "Alle Clips",
@@ -27,7 +28,9 @@ const viewTitles: Record<string, string> = {
 };
 
 export function App() {
-  const isQuickPanel = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("quickpanel") === "true";
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const isQuickPanel = params?.get("quickpanel") === "true";
+  const isReplyPanel = params?.get("replypanel") === "true";
 
   const [activeView, setActiveView] = useState("feed");
 
@@ -42,6 +45,10 @@ export function App() {
 
   if (isQuickPanel) {
     return <QuickPanelView />;
+  }
+
+  if (isReplyPanel) {
+    return <ReplyPanelView />;
   }
 
   const renderView = () => {
