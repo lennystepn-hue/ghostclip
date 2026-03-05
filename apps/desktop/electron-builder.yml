@@ -1,0 +1,42 @@
+appId: com.ghostclip.app
+productName: GhostClip
+directories:
+  buildResources: build
+files:
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron.vite.config.*"
+  - "!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml}"
+  - "!{dev-app-update.yml,CHANGELOG.md,README.md}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  executableName: GhostClip
+nsis:
+  artifactName: GhostClip-${version}-Setup.${ext}
+  shortcutName: GhostClip
+  uninstallDisplayName: GhostClip
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: "Microphone access for voice input"
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  maintainer: GhostClip
+  category: Utility
+publish:
+  provider: github
+  owner: ghostclip
+  repo: ghostclip
