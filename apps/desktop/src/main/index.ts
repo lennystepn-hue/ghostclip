@@ -10,6 +10,7 @@ import { enrichClip } from "@ghostclip/ai-client";
 import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
+import { fetchUrlContent } from "./url-fetcher";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -204,12 +205,29 @@ app.whenReady().then(() => {
     mainWindow?.webContents.send("clip:new", clip);
     notifyClipCaptured(clip.summary, clip.type);
 
+    // For URLs: fetch page content for richer AI analysis
+    let urlMeta: { title: string; description: string; text: string } | null = null;
+    if (entry.type === "url") {
+      urlMeta = await fetchUrlContent(entry.content.trim());
+      if (urlMeta?.title) {
+        clip.summary = urlMeta.title;
+        updateClip(clip);
+        mainWindow?.webContents.send("clip:updated", clip);
+        console.log(`URL fetched: "${urlMeta.title}"`);
+      }
+    }
+
     // AI enrichment (async — update comes later)
     if (oauthToken && entry.type !== "image") {
       try {
+        // For URLs, send page content + URL for deeper analysis
+        const enrichContent = entry.type === "url" && urlMeta
+          ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
+          : entry.content.slice(0, 2000);
+
         const result = await enrichClip({
           type: entry.type,
-          content: entry.content.slice(0, 2000),
+          content: enrichContent,
           oauthToken,
         });
 
@@ -512,6 +530,17 @@ app.whenReady().then(() => {
   // IPC: Settings
   ipcMain.handle("settings:get", () => getAllSettings());
   ipcMain.handle("settings:update", (_e, key: string, value: string) => { setSetting(key, value); return true; });
+
+  // IPC: Open URL in default browser
+  ipcMain.handle("shell:openUrl", (_e, url: string) => {
+    shell.openExternal(url);
+    return true;
+  });
+
+  // IPC: Fetch URL content (for manual re-fetch)
+  ipcMain.handle("url:fetch", async (_e, url: string) => {
+    return await fetchUrlContent(url);
+  });
 
   // IPC: Clipboard write (paste from history)
   ipcMain.handle("clipboard:write", (_e, text: string) => {

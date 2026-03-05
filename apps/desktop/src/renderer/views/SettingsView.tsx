@@ -23,7 +23,7 @@ export function SettingsView() {
     notifications: true,
     screenContext: false,
     autoExpireSensitive: true,
-    aiModel: "claude-sonnet-4",
+    aiModel: "claude-sonnet-4-6",
   });
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
@@ -39,7 +39,7 @@ export function SettingsView() {
           notifications: s.notifications !== "false",
           screenContext: s.screenContext === "true",
           autoExpireSensitive: s.autoExpireSensitive !== "false",
-          aiModel: s.aiModel || "claude-sonnet-4",
+          aiModel: s.aiModel || "claude-sonnet-4-6",
         });
       }
       setLoading(false);
@@ -132,7 +132,7 @@ export function SettingsView() {
       <div style={{ ...cardStyle, marginBottom: "28px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>Aktives Modell</p>
-          <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>Enrichment: Haiku 4.5 | Chat: Sonnet 4</p>
+          <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>Enrichment: Haiku 4.5 | Chat: Sonnet 4.6</p>
         </div>
         <span style={{
           fontSize: "12px", fontFamily: "'JetBrains Mono', monospace", color: "#91a7ff",

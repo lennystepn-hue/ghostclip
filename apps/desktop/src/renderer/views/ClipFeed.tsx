@@ -194,6 +194,20 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
                   </span>
                 </div>
 
+                {/* URL preview */}
+                {clip.type === "url" && clip.content && (
+                  <div style={{
+                    fontSize: "11px", color: "#5c7cfa", marginTop: "4px",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    cursor: "pointer", opacity: 0.7,
+                  }}
+                    onClick={() => (window as any).ghostclip?.openUrl?.(clip.content)}
+                    title={clip.content}
+                  >
+                    {clip.content.length > 80 ? clip.content.slice(0, 80) + "..." : clip.content}
+                  </div>
+                )}
+
                 {/* Tags */}
                 {clip.tags && clip.tags.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "6px" }}>
@@ -235,10 +249,21 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
                 <span style={{ fontSize: "10px", color: "#4a4a60", fontFamily: "'JetBrains Mono', monospace" }}>
                   {new Date(clip.createdAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
                 </span>
-                <div style={{ display: "flex", gap: "2px" }}>
-                  <button onClick={() => copyClip(clip.id)} title="Kopieren" style={actionBtn}>C</button>
-                  <button onClick={() => pinClip(clip.id)} title="Pinnen" style={{ ...actionBtn, color: clip.pinned ? "#748ffc" : undefined }}>P</button>
-                  <button onClick={() => deleteClip(clip.id)} title="Loeschen" style={{ ...actionBtn, color: "#ef4444" }}>X</button>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {clip.type === "url" && (
+                    <button onClick={() => (window as any).ghostclip?.openUrl?.(clip.content)} title="Im Browser oeffnen" style={{ ...actionBtn, color: "#22c55e" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </button>
+                  )}
+                  <button onClick={() => copyClip(clip.id)} title="Kopieren" style={actionBtn}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                  <button onClick={() => pinClip(clip.id)} title="Pinnen" style={{ ...actionBtn, color: clip.pinned ? "#748ffc" : undefined, background: clip.pinned ? "rgba(92,124,250,0.12)" : undefined }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={clip.pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z"/></svg>
+                  </button>
+                  <button onClick={() => deleteClip(clip.id)} title="Loeschen" style={{ ...actionBtn, color: "#ef4444" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -316,13 +341,14 @@ function AutoExpireTimer({ createdAt }: { createdAt: string }) {
 }
 
 const actionBtn: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#5c5c75",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+  color: "#8888a0",
   cursor: "pointer",
-  fontSize: "10px",
-  fontWeight: 600,
-  padding: "2px 5px",
-  borderRadius: "4px",
-  fontFamily: "'JetBrains Mono', monospace",
+  padding: "6px",
+  borderRadius: "8px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "all 0.15s",
 };

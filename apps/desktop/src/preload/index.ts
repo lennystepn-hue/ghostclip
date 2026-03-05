@@ -14,6 +14,8 @@ const api = {
   searchClips: (query: string) => ipcRenderer.invoke("clips:search", query),
   semanticSearch: (query: string) => ipcRenderer.invoke("clips:semanticSearch", query),
   writeClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
+  openUrl: (url: string) => ipcRenderer.invoke("shell:openUrl", url),
+  fetchUrl: (url: string) => ipcRenderer.invoke("url:fetch", url),
   clearAllClips: () => ipcRenderer.invoke("clips:clearAll"),
   importClips: (clips: any[]) => ipcRenderer.invoke("clips:import", clips),
 

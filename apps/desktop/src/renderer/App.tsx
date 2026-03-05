@@ -10,6 +10,7 @@ import { SmartView } from "./views/SmartView";
 import { ChatView } from "./views/ChatView";
 import { QuickPanelView } from "./views/QuickPanelView";
 import { ReplyPanelView } from "./views/ReplyPanelView";
+import { AccountView } from "./views/AccountView";
 
 const viewTitles: Record<string, string> = {
   feed: "Alle Clips",
@@ -77,6 +78,8 @@ export function App() {
         return <DevicesView />;
       case "settings":
         return <SettingsView />;
+      case "account":
+        return <AccountView />;
       default:
         return <ClipFeed filter="all" />;
     }
