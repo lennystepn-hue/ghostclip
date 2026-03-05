@@ -1,6 +1,10 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, ipcMain } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
+import { ClipboardWatcher } from "./clipboard-watcher";
+import { createTray } from "./tray";
+import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
+import { notifyClipCaptured } from "./notifications";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -47,8 +51,34 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // Clipboard watcher
+  const clipboardWatcher = new ClipboardWatcher();
+  clipboardWatcher.start((entry) => {
+    mainWindow?.webContents.send("clipboard:change", entry);
+    notifyClipCaptured(entry.content.slice(0, 50), entry.type);
+  });
+
+  // System tray
+  createTray(mainWindow);
+
+  // Global hotkeys
+  registerHotkeys(mainWindow);
+
+  // Window control IPC handlers
+  ipcMain.on("window:minimize", () => mainWindow?.minimize());
+  ipcMain.on("window:maximize", () => {
+    if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+    else mainWindow?.maximize();
+  });
+  ipcMain.on("window:close", () => mainWindow?.hide());
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+
+  app.on("will-quit", () => {
+    clipboardWatcher.stop();
+    unregisterHotkeys();
   });
 });
 
