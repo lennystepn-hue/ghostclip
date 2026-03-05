@@ -8,7 +8,7 @@ const COLLAPSED_SIZE = { width: 52, height: 52 };
 const EXPANDED_SIZE = { width: 360, height: 420 };
 
 export function createFloatingWidget() {
-  if (floatingWindow) {
+  if (floatingWindow && !floatingWindow.isDestroyed()) {
     floatingWindow.show();
     return floatingWindow;
   }
@@ -26,7 +26,7 @@ export function createFloatingWidget() {
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
-    focusable: true,
+    focusable: false, // Don't steal focus when collapsed
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -40,23 +40,19 @@ export function createFloatingWidget() {
 
   floatingWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  // Let clicks pass through transparent areas
+  floatingWindow.setIgnoreMouseEvents(true, { forward: true });
+
   floatingWindow.on("closed", () => {
     floatingWindow = null;
     isExpanded = false;
-  });
-
-  // Blur = collapse
-  floatingWindow.on("blur", () => {
-    if (isExpanded) {
-      collapseWidget();
-    }
   });
 
   return floatingWindow;
 }
 
 export function toggleFloatingWidget() {
-  if (!floatingWindow) {
+  if (!floatingWindow || floatingWindow.isDestroyed()) {
     createFloatingWidget();
     return;
   }
@@ -68,7 +64,7 @@ export function toggleFloatingWidget() {
 }
 
 export function expandWidget() {
-  if (!floatingWindow || isExpanded) return;
+  if (!floatingWindow || floatingWindow.isDestroyed() || isExpanded) return;
   isExpanded = true;
 
   const { workAreaSize } = screen.getPrimaryDisplay();
@@ -78,11 +74,15 @@ export function expandWidget() {
     width: EXPANDED_SIZE.width,
     height: EXPANDED_SIZE.height,
   });
+  // When expanded: capture mouse events, be focusable
+  floatingWindow.setIgnoreMouseEvents(false);
+  floatingWindow.setFocusable(true);
+  floatingWindow.focus();
   floatingWindow.webContents.send("widget:expanded", true);
 }
 
 export function collapseWidget() {
-  if (!floatingWindow || !isExpanded) return;
+  if (!floatingWindow || floatingWindow.isDestroyed() || !isExpanded) return;
   isExpanded = false;
 
   const { workAreaSize } = screen.getPrimaryDisplay();
@@ -92,11 +92,16 @@ export function collapseWidget() {
     width: COLLAPSED_SIZE.width,
     height: COLLAPSED_SIZE.height,
   });
+  // When collapsed: let clicks pass through, don't steal focus
+  floatingWindow.setIgnoreMouseEvents(true, { forward: true });
+  floatingWindow.setFocusable(false);
   floatingWindow.webContents.send("widget:expanded", false);
 }
 
 export function sendToWidget(channel: string, data: any) {
-  floatingWindow?.webContents.send(channel, data);
+  if (floatingWindow && !floatingWindow.isDestroyed()) {
+    floatingWindow.webContents.send(channel, data);
+  }
 }
 
 export function setupWidgetIPC() {
@@ -110,5 +115,18 @@ export function setupWidgetIPC() {
 
   ipcMain.on("widget:collapse", () => {
     collapseWidget();
+  });
+
+  // Mouse enter/leave on the collapsed button — temporarily capture events
+  ipcMain.on("widget:mouse-enter", () => {
+    if (floatingWindow && !floatingWindow.isDestroyed() && !isExpanded) {
+      floatingWindow.setIgnoreMouseEvents(false);
+    }
+  });
+
+  ipcMain.on("widget:mouse-leave", () => {
+    if (floatingWindow && !floatingWindow.isDestroyed() && !isExpanded) {
+      floatingWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
   });
 }

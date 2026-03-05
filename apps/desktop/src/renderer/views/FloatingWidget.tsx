@@ -70,11 +70,23 @@ export function FloatingWidget() {
     setTimeout(() => setCopied(null), 1500);
   };
 
+  // Tell Electron to capture/release mouse events on hover
+  const onMouseEnter = () => {
+    // When mouse enters the button, stop ignoring mouse events
+    (window as any).ghostclip?.widgetMouseEnter?.();
+  };
+  const onMouseLeave = () => {
+    // When mouse leaves, let clicks pass through again
+    (window as any).ghostclip?.widgetMouseLeave?.();
+  };
+
   // Collapsed: just the floating button
   if (!expanded) {
     return (
       <div
         onClick={() => api?.widgetToggleExpand?.()}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         style={{
           width: "48px",
           height: "48px",

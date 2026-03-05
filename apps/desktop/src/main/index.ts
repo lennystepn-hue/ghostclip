@@ -346,9 +346,8 @@ app.whenReady().then(() => {
   // System tray
   createTray(mainWindow);
 
-  // Floating widget (bottom-left FAB)
+  // Floating widget IPC (widget starts via tray menu, not auto)
   setupWidgetIPC();
-  createFloatingWidget();
 
   // Autostart
   if (!is.dev) {

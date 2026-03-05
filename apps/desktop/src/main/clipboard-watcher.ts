@@ -41,17 +41,15 @@ export class ClipboardWatcher {
   private check() {
     try {
       const currentHash = this.getCurrentHash();
-      const now = Date.now();
+      if (!currentHash) return;
 
-      // No change
+      // Same content as last check — skip
       if (currentHash === this.lastHash) return;
 
-      // Dedup: same content within window
-      if (now - this.lastTimestamp < DEDUP_WINDOW && currentHash === this.lastHash) return;
-
       this.lastHash = currentHash;
-      this.lastTimestamp = now;
+      this.lastTimestamp = Date.now();
 
+      // Check if this content is already in DB (dedup)
       const entry = this.buildEntry();
       if (entry && this.callback) {
         console.log(`[Watcher] New clip detected: ${entry.type} (${entry.content.slice(0, 60)}...)`);
