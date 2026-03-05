@@ -1,4 +1,5 @@
 import { Notification } from "electron";
+import { isDndMode } from "./tray";
 
 type NotificationType = "clip" | "sensitive" | "smart" | "reply";
 
@@ -10,10 +11,13 @@ interface NotifyOptions {
 }
 
 export function notify({ type, title, body, onClick }: NotifyOptions) {
+  // DND mode: only show critical (sensitive) notifications
+  if (isDndMode() && type !== "sensitive") return;
+
   const notification = new Notification({
     title,
     body,
-    silent: type === "clip", // clip notifications are silent
+    silent: type === "clip",
     urgency: type === "sensitive" ? "critical" : "normal",
   });
 

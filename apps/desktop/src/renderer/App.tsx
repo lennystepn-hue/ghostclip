@@ -11,6 +11,7 @@ import { ChatView } from "./views/ChatView";
 import { QuickPanelView } from "./views/QuickPanelView";
 import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
+import { FloatingWidget } from "./views/FloatingWidget";
 
 const viewTitles: Record<string, string> = {
   feed: "Alle Clips",
@@ -32,6 +33,7 @@ export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const isQuickPanel = params?.get("quickpanel") === "true";
   const isReplyPanel = params?.get("replypanel") === "true";
+  const isFloatingWidget = params?.get("floatingWidget") === "true";
 
   const [activeView, setActiveView] = useState("feed");
 
@@ -50,6 +52,10 @@ export function App() {
 
   if (isReplyPanel) {
     return <ReplyPanelView />;
+  }
+
+  if (isFloatingWidget) {
+    return <FloatingWidget />;
   }
 
   const renderView = () => {

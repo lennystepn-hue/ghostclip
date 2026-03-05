@@ -53,6 +53,13 @@ export function initDb() {
     // Column already exists
   }
 
+  // Migration: add image_data column for storing base64 image data
+  try {
+    db.exec(`ALTER TABLE clips ADD COLUMN image_data TEXT DEFAULT NULL`);
+  } catch {
+    // Column already exists
+  }
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at DESC)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_hash ON clips(content_hash)`);
 
@@ -95,8 +102,8 @@ export function initDb() {
 
 export function insertClip(clip: any) {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO clips (id, type, content, content_hash, summary, tags, mood, actions, sensitivity, source_app, pinned, archived, enriched, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO clips (id, type, content, content_hash, summary, tags, mood, actions, sensitivity, source_app, pinned, archived, enriched, image_data, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     clip.id,
@@ -112,16 +119,18 @@ export function insertClip(clip: any) {
     clip.pinned ? 1 : 0,
     clip.archived ? 1 : 0,
     clip.enriched ? 1 : 0,
+    clip.imageData || null,
     clip.createdAt,
   );
 }
 
 export function updateClip(clip: any) {
   const stmt = db.prepare(`
-    UPDATE clips SET summary=?, tags=?, mood=?, actions=?, sensitivity=?, pinned=?, archived=?, enriched=?
+    UPDATE clips SET content=?, summary=?, tags=?, mood=?, actions=?, sensitivity=?, pinned=?, archived=?, enriched=?, image_data=?
     WHERE id=?
   `);
   stmt.run(
+    clip.content,
     clip.summary,
     JSON.stringify(clip.tags || []),
     clip.mood,
@@ -130,6 +139,7 @@ export function updateClip(clip: any) {
     clip.pinned ? 1 : 0,
     clip.archived ? 1 : 0,
     clip.enriched ? 1 : 0,
+    clip.imageData || null,
     clip.id,
   );
 }
@@ -173,6 +183,7 @@ function rowToClip(row: ClipRow) {
     pinned: !!row.pinned,
     archived: !!row.archived,
     enriched: !!row.enriched,
+    imageData: (row as any).image_data || null,
     createdAt: row.created_at,
   };
 }

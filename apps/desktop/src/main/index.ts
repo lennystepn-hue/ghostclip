@@ -11,6 +11,7 @@ import { initEncryption, encryptContent, isEncryptionReady } from "./encryption"
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
+import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -187,12 +188,13 @@ app.whenReady().then(() => {
       type: entry.type,
       content: entry.content,
       contentHash: entry.contentHash,
-      summary: entry.content.slice(0, 100),
+      summary: entry.type === "image" ? "Bild wird analysiert..." : entry.content.slice(0, 100),
       tags: [] as string[],
       mood: null as string | null,
       actions: [] as any[],
       sensitivity: null as string | null,
       sourceApp: entry.sourceApp || lastActiveApp,
+      imageData: entry.type === "image" ? entry.content : null,
       pinned: false,
       archived: false,
       createdAt: new Date().toISOString(),
@@ -203,6 +205,7 @@ app.whenReady().then(() => {
     insertClip(clip);
     emitClipNew(clip);
     mainWindow?.webContents.send("clip:new", clip);
+    sendToWidget("clip:new", clip);
     notifyClipCaptured(clip.summary, clip.type);
 
     // For URLs: fetch page content for richer AI analysis
@@ -218,18 +221,40 @@ app.whenReady().then(() => {
     }
 
     // AI enrichment (async — update comes later)
-    if (oauthToken && entry.type !== "image") {
+    if (oauthToken) {
       try {
-        // For URLs, send page content + URL for deeper analysis
-        const enrichContent = entry.type === "url" && urlMeta
-          ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
-          : entry.content.slice(0, 2000);
+        let result: any;
 
-        const result = await enrichClip({
-          type: entry.type,
-          content: enrichContent,
-          oauthToken,
-        });
+        if (entry.type === "image") {
+          // Vision analysis for images
+          const { analyzeImage } = await import("@ghostclip/ai-client");
+          const visionResult = await analyzeImage({ imageBase64: entry.content, oauthToken });
+          result = {
+            tags: visionResult.tags,
+            summary: visionResult.summary || visionResult.description,
+            mood: visionResult.mood,
+            actions: visionResult.actions,
+            sensitivity: visionResult.sensitivity,
+          };
+          // Store OCR text as searchable content
+          if (visionResult.ocrText) {
+            clip.content = `[Bild] ${visionResult.description}\n\nOCR: ${visionResult.ocrText}`;
+          } else {
+            clip.content = `[Bild] ${visionResult.description}`;
+          }
+          console.log(`Vision analyzed: "${visionResult.description}" OCR: ${visionResult.ocrText?.slice(0, 80) || "none"}`);
+        } else {
+          // Text/URL enrichment
+          const enrichContent = entry.type === "url" && urlMeta
+            ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
+            : entry.content.slice(0, 2000);
+
+          result = await enrichClip({
+            type: entry.type,
+            content: enrichContent,
+            oauthToken,
+          });
+        }
 
         // Update clip with AI data
         clip.tags = result.tags;
@@ -263,6 +288,7 @@ app.whenReady().then(() => {
             const replies = await generateReplies({ message: clip.content.slice(0, 1000), oauthToken });
             if (replies.length > 0) {
               mainWindow?.webContents.send("reply:suggestions", { clipId: clip.id, replies });
+              sendToWidget("reply:suggestions", { clipId: clip.id, replies });
               notify({
                 type: "reply",
                 title: "Antwortvorschlaege bereit",
@@ -285,6 +311,18 @@ app.whenReady().then(() => {
 
   // System tray
   createTray(mainWindow);
+
+  // Floating widget (bottom-left FAB)
+  setupWidgetIPC();
+  createFloatingWidget();
+
+  // Autostart
+  if (!is.dev) {
+    app.setLoginItemSettings({
+      openAtLogin: getSetting("autostart", "true") === "true",
+      args: ["--hidden"],
+    });
+  }
 
   // Global hotkeys
   registerHotkeys(mainWindow);

@@ -85,6 +85,14 @@ const api = {
 
   // Encryption
   encryptionStatus: () => ipcRenderer.invoke("encryption:status"),
+
+  // Floating Widget
+  widgetToggleExpand: () => ipcRenderer.send("widget:toggle-expand"),
+  widgetCollapse: () => ipcRenderer.send("widget:collapse"),
+  onWidgetExpanded: (callback: (expanded: boolean) => void) => {
+    ipcRenderer.on("widget:expanded", (_event, expanded) => callback(expanded));
+    return () => ipcRenderer.removeAllListeners("widget:expanded");
+  },
 };
 
 contextBridge.exposeInMainWorld("ghostclip", api);

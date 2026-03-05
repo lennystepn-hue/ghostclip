@@ -23,6 +23,8 @@ export function SettingsView() {
     notifications: true,
     screenContext: false,
     autoExpireSensitive: true,
+    autostart: true,
+    floatingWidget: true,
     aiModel: "claude-sonnet-4-6",
   });
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,8 @@ export function SettingsView() {
           notifications: s.notifications !== "false",
           screenContext: s.screenContext === "true",
           autoExpireSensitive: s.autoExpireSensitive !== "false",
+          autostart: s.autostart !== "false",
+          floatingWidget: s.floatingWidget !== "false",
           aiModel: s.aiModel || "claude-sonnet-4-6",
         });
       }
@@ -115,6 +119,10 @@ export function SettingsView() {
           checked={settings.clipboardWatcher} onChange={() => toggle("clipboardWatcher")} />
         <SettingToggle label="Benachrichtigungen" description="Desktop-Benachrichtigungen bei neuen Clips"
           checked={settings.notifications} onChange={() => toggle("notifications")} />
+        <SettingToggle label="Autostart" description="GhostClip beim Systemstart automatisch starten"
+          checked={settings.autostart} onChange={() => toggle("autostart")} />
+        <SettingToggle label="Floating Widget" description="Schwebendes Panel unten links fuer schnellen Zugriff"
+          checked={settings.floatingWidget} onChange={() => toggle("floatingWidget")} />
       </div>
 
       {/* Privacy */}

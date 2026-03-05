@@ -194,6 +194,24 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
                   </span>
                 </div>
 
+                {/* Image thumbnail */}
+                {clip.type === "image" && clip.imageData && (
+                  <div style={{ marginTop: "6px" }}>
+                    <img
+                      src={`data:image/png;base64,${clip.imageData}`}
+                      alt={clip.summary || "Bild"}
+                      style={{
+                        maxWidth: "200px",
+                        maxHeight: "120px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        objectFit: "cover",
+                      }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
+
                 {/* URL preview */}
                 {clip.type === "url" && clip.content && (
                   <div style={{

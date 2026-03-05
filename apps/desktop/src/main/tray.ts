@@ -1,7 +1,10 @@
 import { Tray, Menu, nativeImage, BrowserWindow, app } from "electron";
 import { join } from "path";
+import { toggleFloatingWidget } from "./floating-widget";
 
 let tray: Tray | null = null;
+let dndMode = false;
+let clipCount = 0;
 
 export function createTray(mainWindow: BrowserWindow | null): Tray {
   const iconPath = join(__dirname, "../../resources/tray-icon.png");
@@ -10,20 +13,52 @@ export function createTray(mainWindow: BrowserWindow | null): Tray {
   tray = new Tray(icon);
   tray.setToolTip("GhostClip");
 
+  rebuildMenu(mainWindow);
+
+  // Left click: show/hide main window
+  tray.on("click", () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow?.show();
+      mainWindow?.focus();
+      clipCount = 0;
+      updateTrayTooltip();
+    }
+  });
+
+  return tray;
+}
+
+function rebuildMenu(mainWindow: BrowserWindow | null) {
+  if (!tray) return;
+
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "GhostClip oeffnen",
       click: () => {
         mainWindow?.show();
         mainWindow?.focus();
+        clipCount = 0;
+        updateTrayTooltip();
       },
     },
+    { type: "separator" },
     {
-      label: "Quick Panel",
-      accelerator: "CmdOrCtrl+Shift+V",
+      label: "Quick Panel           Ctrl+Shift+V",
       click: () => {
         mainWindow?.webContents.send("shortcut:quick-panel");
       },
+    },
+    {
+      label: "Antwort-Panel       Ctrl+Shift+R",
+      click: () => {
+        mainWindow?.webContents.send("shortcut:reply-panel");
+      },
+    },
+    {
+      label: "Floating Widget",
+      click: () => toggleFloatingWidget(),
     },
     { type: "separator" },
     {
@@ -35,11 +70,12 @@ export function createTray(mainWindow: BrowserWindow | null): Tray {
       },
     },
     {
-      label: "Screen Context",
+      label: "Nicht stoeren",
       type: "checkbox",
-      checked: false,
+      checked: dndMode,
       click: (menuItem) => {
-        mainWindow?.webContents.send("screen-context:toggle", menuItem.checked);
+        dndMode = menuItem.checked;
+        mainWindow?.webContents.send("dnd:toggle", dndMode);
       },
     },
     { type: "separator" },
@@ -48,6 +84,13 @@ export function createTray(mainWindow: BrowserWindow | null): Tray {
       click: () => {
         mainWindow?.show();
         mainWindow?.webContents.send("navigate", "settings");
+      },
+    },
+    {
+      label: "Analytics",
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.webContents.send("navigate", "analytics");
       },
     },
     { type: "separator" },
@@ -60,21 +103,24 @@ export function createTray(mainWindow: BrowserWindow | null): Tray {
   ]);
 
   tray.setContextMenu(contextMenu);
+}
 
-  // Left click: show/hide main window
-  tray.on("click", () => {
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide();
-    } else {
-      mainWindow?.show();
-      mainWindow?.focus();
-    }
-  });
-
-  return tray;
+function updateTrayTooltip() {
+  if (!tray) return;
+  if (dndMode) {
+    tray.setToolTip("GhostClip (Nicht stoeren)");
+  } else if (clipCount > 0) {
+    tray.setToolTip(`GhostClip (${clipCount} neu)`);
+  } else {
+    tray.setToolTip("GhostClip");
+  }
 }
 
 export function updateTrayBadge(count: number) {
-  if (!tray) return;
-  tray.setToolTip(count > 0 ? `GhostClip (${count} neu)` : "GhostClip");
+  clipCount = count;
+  updateTrayTooltip();
+}
+
+export function isDndMode(): boolean {
+  return dndMode;
 }
