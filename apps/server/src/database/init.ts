@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { pool } from "./connection";
 import fs from "node:fs";
 import path from "node:path";

@@ -1,13 +1,11 @@
 import { Tray, Menu, nativeImage, BrowserWindow, app } from "electron";
+import { join } from "path";
 
 let tray: Tray | null = null;
 
 export function createTray(mainWindow: BrowserWindow | null): Tray {
-  // Create a simple 16x16 icon (in production, use actual icon file)
-  const icon = nativeImage.createFromBuffer(
-    Buffer.alloc(16 * 16 * 4, 0), // placeholder transparent icon
-    { width: 16, height: 16 },
-  );
+  const iconPath = join(__dirname, "../../resources/tray-icon.png");
+  const icon = nativeImage.createFromPath(iconPath);
 
   tray = new Tray(icon);
   tray.setToolTip("GhostClip");

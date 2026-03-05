@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5c7cfa"/>
+      <stop offset="100%" stop-color="#4263eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#g)"/>
+  <!-- Ghost body -->
+  <path d="M256 96c-77 0-140 63-140 140v148c0 8 10 12 16 6l30-30c6-6 16-6 22 0l24 24c6 6 16 6 22 0l26-26c6-6 16-6 22 0l26 26c6 6 16 6 22 0l24-24c6-6 16-6 22 0l30 30c6 6 16 2 16-6V236c0-77-63-140-140-140z" fill="rgba(255,255,255,0.95)"/>
+  <!-- Eyes -->
+  <circle cx="216" cy="248" r="22" fill="#4263eb"/>
+  <circle cx="296" cy="248" r="22" fill="#4263eb"/>
+  <circle cx="222" cy="242" r="8" fill="white"/>
+  <circle cx="302" cy="242" r="8" fill="white"/>
+</svg>

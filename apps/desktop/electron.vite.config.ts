@@ -6,7 +6,11 @@ import autoprefixer from "autoprefixer";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ["@ghostclip/shared", "@ghostclip/crypto", "@ghostclip/ai-client"],
+      }),
+    ],
     build: {
       rollupOptions: {
         input: {

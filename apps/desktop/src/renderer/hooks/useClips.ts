@@ -3,15 +3,17 @@ import { useState, useEffect, useCallback } from "react";
 interface Clip {
   id: string;
   type: "text" | "image" | "file" | "url";
+  content?: string;
   summary: string | null;
   tags: string[];
   mood: string | null;
+  actions: any[];
   sourceApp: string | null;
   pinned: boolean;
   archived: boolean;
   sensitivity: string | null;
   createdAt: string;
-  contentEnc?: string;
+  enriched: boolean;
 }
 
 export function useClips() {
@@ -22,9 +24,11 @@ export function useClips() {
   const loadClips = useCallback(async () => {
     try {
       setLoading(true);
-      // In production, this would call the API via preload bridge
-      // For now, using demo data
-      setClips([]);
+      const api = (window as any).ghostclip;
+      if (api?.getClips) {
+        const stored = await api.getClips();
+        setClips(stored || []);
+      }
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -36,43 +40,51 @@ export function useClips() {
   useEffect(() => {
     loadClips();
 
-    // Listen for new clips from clipboard watcher
-    const cleanup = (window as any).ghostclip?.onClipboardChange?.(
-      (entry: any) => {
-        const newClip: Clip = {
-          id: crypto.randomUUID(),
-          type: entry.type,
-          summary: entry.content?.slice(0, 100) || null,
-          tags: [],
-          mood: null,
-          sourceApp: entry.sourceApp,
-          pinned: false,
-          archived: false,
-          sensitivity: null,
-          createdAt: new Date().toISOString(),
-        };
-        setClips((prev) => [newClip, ...prev]);
-      },
-    );
+    const api = (window as any).ghostclip;
+    if (!api) return;
 
-    return () => cleanup?.();
+    // Listen for new clips
+    const cleanupNew = api.onClipNew?.((clip: Clip) => {
+      setClips((prev) => [clip, ...prev]);
+    });
+
+    // Listen for clip updates (AI enrichment)
+    const cleanupUpdated = api.onClipUpdated?.((updated: Clip) => {
+      setClips((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c)),
+      );
+    });
+
+    return () => {
+      cleanupNew?.();
+      cleanupUpdated?.();
+    };
   }, [loadClips]);
 
-  const pinClip = useCallback((id: string) => {
-    setClips((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)),
-    );
+  const copyClip = useCallback((id: string) => {
+    const clip = clips.find((c) => c.id === id);
+    if (clip?.content) {
+      navigator.clipboard.writeText(clip.content);
+    } else if (clip?.summary) {
+      navigator.clipboard.writeText(clip.summary);
+    }
+  }, [clips]);
+
+  const pinClip = useCallback(async (id: string) => {
+    const api = (window as any).ghostclip;
+    await api?.pinClip?.(id);
   }, []);
 
-  const archiveClip = useCallback((id: string) => {
-    setClips((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, archived: true } : c)),
-    );
+  const archiveClip = useCallback(async (id: string) => {
+    const api = (window as any).ghostclip;
+    await api?.archiveClip?.(id);
   }, []);
 
-  const deleteClip = useCallback((id: string) => {
+  const deleteClip = useCallback(async (id: string) => {
+    const api = (window as any).ghostclip;
+    await api?.deleteClip?.(id);
     setClips((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  return { clips, loading, error, loadClips, pinClip, archiveClip, deleteClip };
+  return { clips, loading, error, loadClips, copyClip, pinClip, archiveClip, deleteClip };
 }

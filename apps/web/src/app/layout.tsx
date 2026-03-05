@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "GhostClip — AI Clipboard Manager",
-  description: "Dein AI-powered Clipboard Manager mit Cloud Sync",
+  description: "Dein AI-powered Clipboard Manager mit Cloud Sync, E2E Encryption, Cross-Platform",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className="dark">
-      <body className={`${inter.className} bg-surface-DEFAULT text-surface-900 antialiased`}>
+      <body>
         {children}
       </body>
     </html>

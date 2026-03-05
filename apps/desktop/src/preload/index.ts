@@ -6,25 +6,28 @@ const api = {
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
 
-  // Clipboard
-  onClipboardChange: (callback: (data: any) => void) => {
-    ipcRenderer.on("clipboard:change", (_event, data) => callback(data));
-    return () => ipcRenderer.removeAllListeners("clipboard:change");
-  },
-
   // Clips
   getClips: () => ipcRenderer.invoke("clips:list"),
-  createClip: (clip: any) => ipcRenderer.invoke("clips:create", clip),
   deleteClip: (id: string) => ipcRenderer.invoke("clips:delete", id),
   pinClip: (id: string) => ipcRenderer.invoke("clips:pin", id),
   archiveClip: (id: string) => ipcRenderer.invoke("clips:archive", id),
   searchClips: (query: string) => ipcRenderer.invoke("clips:search", query),
 
-  // AI
-  enrichClip: (content: string, type: string) =>
-    ipcRenderer.invoke("ai:enrich", content, type),
-  getReplies: (message: string) =>
-    ipcRenderer.invoke("ai:replies", message),
+  // Clip events (from clipboard watcher + AI enrichment)
+  onClipNew: (callback: (clip: any) => void) => {
+    ipcRenderer.on("clip:new", (_event, clip) => callback(clip));
+    return () => ipcRenderer.removeAllListeners("clip:new");
+  },
+  onClipUpdated: (callback: (clip: any) => void) => {
+    ipcRenderer.on("clip:updated", (_event, clip) => callback(clip));
+    return () => ipcRenderer.removeAllListeners("clip:updated");
+  },
+
+  // Legacy clipboard change (kept for compatibility)
+  onClipboardChange: (callback: (data: any) => void) => {
+    ipcRenderer.on("clipboard:change", (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners("clipboard:change");
+  },
 
   // Auth
   login: (email: string, password: string) =>
