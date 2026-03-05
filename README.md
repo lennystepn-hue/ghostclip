@@ -1,196 +1,459 @@
-<p align="center">
-  <img src="docs/logo-placeholder.png" alt="GhostClip Logo" width="120" />
-</p>
+<div align="center">
 
-<h1 align="center">GhostClip</h1>
+<!-- Logo -->
+<br/>
+<img width="80" src="https://api.iconify.design/lucide:clipboard-check.svg?color=%235c7cfa" alt="GhostClip"/>
+<br/>
 
-<p align="center">
-  <strong>Your clipboard, everywhere. End-to-end encrypted clipboard sync across all your devices.</strong>
-</p>
+# GhostClip
 
-<p align="center">
-  <a href="#features">Features</a> &middot;
-  <a href="#quick-start">Quick Start</a> &middot;
-  <a href="#architecture">Architecture</a> &middot;
-  <a href="#deployment">Deployment</a> &middot;
-  <a href="#contributing">Contributing</a>
-</p>
+**AI-Powered Clipboard Manager with E2E Encrypted Cloud Sync**
+
+[![CI](https://img.shields.io/badge/build-passing-22c55e?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/lennystepn-hue/ghostclip/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/license-MIT-5c7cfa?style=flat-square)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-a855f7?style=flat-square)](CONTRIBUTING.md)
+[![Electron](https://img.shields.io/badge/Electron-33-47848f?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000?style=flat-square&logo=next.js)](https://nextjs.org/)
+
+<br/>
+
+[Features](#-features) · [Screenshots](#-screenshots) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Deployment](#-deployment) · [Contributing](#-contributing)
+
+<br/>
+</div>
 
 ---
 
 ## What is GhostClip?
 
-GhostClip is a real-time, end-to-end encrypted clipboard manager that syncs your clips across desktop and web. Every piece of content is encrypted on your device before it ever leaves -- not even the server can read your data. AI-powered search and smart categorization help you find anything you have ever copied.
+> Copy once, find it everywhere. GhostClip remembers everything you copy, understands it with AI, and syncs it securely across all your devices.
 
-## Features
+GhostClip runs silently in the background, capturing every clipboard entry — text, images, URLs, code, files. Each clip gets analyzed by AI in real-time: auto-tagged, summarized, and classified. Smart reply suggestions, semantic search, and a beautiful dashboard let you access and leverage your clipboard history like never before.
 
-- **End-to-End Encryption** -- All clipboard data is encrypted client-side using AES-256-GCM. The server never sees plaintext content.
-- **Real-Time Sync** -- Clips appear instantly across all connected devices via WebSocket.
-- **AI-Powered Search** -- Natural language search over your encrypted clips using local decryption + server-side vector embeddings.
-- **Smart Categories** -- Automatic detection of URLs, code snippets, emails, addresses, and more.
-- **Desktop App** -- Native Electron app with global hotkey, system tray, and clipboard monitoring.
-- **Web Dashboard** -- Full-featured Next.js web interface for browsing, searching, and managing clips.
-- **Secure Sharing** -- Share individual clips or collections with expiring, encrypted links.
-- **Offline Support** -- Local SQLite cache keeps your clips available even without a connection.
-- **Cross-Platform** -- Works on macOS, Windows, and Linux.
+**Your data stays yours.** All clip content is encrypted client-side with AES-256-GCM before it ever leaves your machine. The server never sees your plaintext data.
 
-## Screenshots
+---
 
-<p align="center">
-  <em>Screenshots coming soon</em>
-</p>
+## ✨ Features
 
-## Quick Start
+<table>
+<tr>
+<td width="50%">
+
+### 🧠 AI-Powered Intelligence
+- **Free classification** — no fixed categories, AI decides dynamically
+- **Smart tags** generated for every clip
+- **Reply suggestions** in 3 tones (casual, formal, friendly)
+- **AI Chat** — ask questions about your clipboard history
+- **Vision & OCR** — understands images and screenshots
+
+</td>
+<td width="50%">
+
+### 🔒 Security First
+- **AES-256-GCM** encryption for all clip content
+- **PBKDF2** key derivation (600,000 iterations)
+- **Zero-knowledge** — server never sees plaintext
+- **2FA support** (TOTP)
+- **Auto-expire** sensitive data (passwords, tokens)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🔄 Seamless Sync
+- **Real-time** WebSocket sync (< 500ms latency)
+- **Offline queue** — works without internet
+- **Conflict resolution** built-in
+- **Up to 10 devices** synced simultaneously
+- **Panic button** — wipe all data everywhere
+
+</td>
+<td width="50%">
+
+### 🖥️ Cross-Platform
+- **Windows** (.exe installer)
+- **macOS** (.dmg, Apple Silicon + Intel)
+- **Linux** (.AppImage, .deb, .rpm)
+- **Web Dashboard** — access from any browser
+- **Same account**, same data, everywhere
+
+</td>
+</tr>
+</table>
+
+---
+
+## 📸 Screenshots
+
+### Desktop App — Quick Panel
+
+```
+╭────────────────────────────────────────────╮
+│ 🔍 Search clips...                        │
+├────────────────────────────────────────────┤
+│                                            │
+│  📋 "Hallo Max, kannst du mir die..."     │
+│     email · max · rechnung · freundlich    │
+│     💡 Reply suggestions available         │
+│     vor 5 Min · Outlook                    │
+│                                            │
+│  🔗 https://github.com/ghostclip          │
+│     github · repo · open-source            │
+│     vor 12 Min · Chrome                    │
+│                                            │
+│  💻 SELECT * FROM users WHERE...           │
+│     sql · query · datenbank                │
+│     vor 1h · VS Code                       │
+│                                            │
+│  🧾 [Screenshot] Vodafone 47.99€          │
+│     rechnung · vodafone · OCR              │
+│     vor 2h · Firefox                       │
+│                                            │
+├────────────────────────────────────────────┤
+│  ↑↓ navigate · Enter paste · Tab details   │
+╰────────────────────────────────────────────╯
+```
+
+### Desktop App — Main Window
+
+```
+╭──────────┬─────────────────────────────────────────────────╮
+│          │                                                  │
+│ 📋 Alle  │  Alle Clips                                     │
+│ 📌 Pinned│  ┌────────────────────────────────────────────┐  │
+│ 🏷 Tags  │  │ 🔍 Clips durchsuchen...          [✨ AI]  │  │
+│ 📁 Samml.│  └────────────────────────────────────────────┘  │
+│ ✨ Smart │                                                  │
+│ 🕐 Heute │  ┌──────────────────┐ ┌──────────────────┐     │
+│ 📅 Woche │  │ "Hallo Max..."   │ │ [Screenshot]     │     │
+│ 🗄 Archiv│  │ 📧 email · max   │ │ 🧾 vodafone 47€  │     │
+│          │  │ 💡 3 replies     │ │ 📝 OCR erkannt   │     │
+│ ──────── │  │ vor 5m · Outlook │ │ vor 12m · Firefox│     │
+│ 📊 Stats │  └──────────────────┘ └──────────────────┘     │
+│ 💻 Geräte│                                                  │
+│ ⚙ Settings│ ┌──────────────────┐ ┌──────────────────┐     │
+│ 👤 Account│ │ SELECT * FROM... │ │ https://github...│     │
+│          │  │ 💻 sql · query   │ │ 🔗 github · repo │     │
+│          │  │ vor 1h · VS Code │ │ vor 2h · Chrome  │     │
+│          │  └──────────────────┘ └──────────────────┘     │
+╰──────────┴─────────────────────────────────────────────────╯
+```
+
+### Web Dashboard — AI Chat
+
+```
+╭─────────────────────────────────────────────────────────╮
+│  ✨ AI Chat                                              │
+│                                                          │
+│         ┌──────────────────────────────────────┐        │
+│         │ Was hat Max letzte Woche geschrieben? │        │
+│         └──────────────────────────────────────┘        │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ Max hat dir 3 Nachrichten geschickt:              │   │
+│  │                                                    │   │
+│  │ 1. 📧 Budget-Anfrage (Montag)                     │   │
+│  │    "Kannst du mir die Rechnung schicken?"         │   │
+│  │                                                    │   │
+│  │ 2. 🔗 GitHub Link (Mittwoch)                      │   │
+│  │    Shared ein Repo zum Review                     │   │
+│  │                                                    │   │
+│  │ 3. 📋 Meeting-Notizen (Freitag)                   │   │
+│  │    Q2 Planung Zusammenfassung                     │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  ┌──────────────────────────────────────────────┐ [➤]  │
+│  │ Frag mich was über deine Clips...             │      │
+│  └──────────────────────────────────────────────┘      │
+╰─────────────────────────────────────────────────────────╯
+```
+
+### Analytics Dashboard
+
+```
+╭─────────────────────────────────────────────────────────╮
+│  📊 Analytics                                            │
+│                                                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
+│  │   400    │ │    42    │ │    89    │ │    12    │  │
+│  │ Clips/Wo │ │  Bilder  │ │   Code   │ │ Gepinnt  │  │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
+│                                                          │
+│  Aktivität          ┌─┐     Clip-Typen                  │
+│            ┌─┐      │ │                                  │
+│       ┌─┐  │ │ ┌─┐  │ │       ╭───────╮                │
+│  ┌─┐  │ │  │ │ │ │  │ │      ╱ Text    ╲               │
+│  │ │  │ │  │ │ │ │  │ │ ┌─┐ │  52%     │               │
+│  │ │  │ │  │ │ │ │  │ │ │ │ │ URLs 15% │               │
+│  │ │  │ │  │ │ │ │  │ │ │ │  ╲ Code 20%╱               │
+│  Mo Di Mi Do Fr Sa So      ╰───────╯                │
+│                                                          │
+│  Top Tags                                                │
+│  ┌────────┐ ┌──────┐ ┌──────────┐ ┌────────┐ ┌──────┐ │
+│  │email 67│ │code43│ │rechnung28│ │github24│ │meet15│ │
+│  └────────┘ └──────┘ └──────────┘ └────────┘ └──────┘ │
+╰─────────────────────────────────────────────────────────╯
+```
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Node.js** >= 22
-- **pnpm** >= 9
-- **PostgreSQL** 16+ (with pgvector extension)
-- **Redis** 7+
+- **Node.js** ≥ 22
+- **pnpm** ≥ 9
+- **Docker** (for PostgreSQL, Redis, MinIO)
 
-### Development Setup
+### 1. Clone & Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/ghostclip.git
+git clone https://github.com/lennystepn-hue/ghostclip.git
 cd ghostclip
-
-# Install dependencies
 pnpm install
-
-# Set up environment variables
-cp apps/server/.env.example apps/server/.env
-# Edit .env with your database credentials, JWT secrets, etc.
-
-# Start all services in dev mode
-pnpm dev
-
-# Or start individual apps
-pnpm dev --filter=@ghostclip/server   # API server on :4000
-pnpm dev --filter=@ghostclip/web      # Web app on :3000
-pnpm dev --filter=@ghostclip/desktop  # Electron app
 ```
 
-### Docker (Development)
+### 2. Start Infrastructure
 
 ```bash
-# Start infrastructure (Postgres, Redis, MinIO)
 docker compose -f docker/docker-compose.yml up -d
-
-# Run the app
-pnpm dev
 ```
 
-## Architecture
+This starts PostgreSQL (with pgvector), Redis, and MinIO.
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your API keys:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   OPENAI_API_KEY=sk-...
+```
+
+### 4. Run
+
+```bash
+# All apps in parallel
+pnpm dev
+
+# Or individually
+pnpm dev --filter=@ghostclip/server    # API on :4000
+pnpm dev --filter=@ghostclip/web       # Dashboard on :3000
+pnpm dev --filter=@ghostclip/desktop   # Electron app
+```
+
+### 5. Run Tests
+
+```bash
+pnpm turbo test
+```
+
+---
+
+## 🏗 Architecture
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │              Client Layer                │
+                    │                                         │
+                    │  ┌───────────┐  ┌──────────┐  ┌─────┐ │
+                    │  │  Electron  │  │  Next.js  │  │ PWA │ │
+                    │  │  Desktop   │  │  Web App  │  │     │ │
+                    │  └─────┬─────┘  └─────┬─────┘  └──┬──┘ │
+                    └────────┼──────────────┼───────────┼────┘
+                             │   REST + WebSocket (wss)  │
+                    ┌────────┼──────────────┼───────────┼────┐
+                    │        ▼              ▼           ▼    │
+                    │           Server (Express + Socket.io)  │
+                    │                                         │
+                    │  ┌──────┐ ┌─────────┐ ┌────┐ ┌──────┐ │
+                    │  │ Auth │ │Clipboard│ │ AI │ │ Sync │ │
+                    │  └──────┘ └─────────┘ └────┘ └──────┘ │
+                    │                                         │
+                    │  ┌──────────────────────────────────┐  │
+                    │  │  PostgreSQL + pgvector │ Redis │ S3 │  │
+                    │  └──────────────────────────────────┘  │
+                    └─────────────────────────────────────────┘
+```
+
+### Monorepo Structure
 
 ```
 ghostclip/
 ├── apps/
-│   ├── server/          # Hono API server (Node.js)
-│   ├── web/             # Next.js 15 web dashboard
-│   └── desktop/         # Electron desktop app
+│   ├── server/          # Express API + Socket.io (TypeScript)
+│   ├── web/             # Next.js 15 Web Dashboard
+│   └── desktop/         # Electron + Vite + React
+│
 ├── packages/
-│   ├── shared/          # Shared types, schemas, constants
-│   ├── crypto/          # E2E encryption library (AES-256-GCM)
-│   ├── ai-client/       # AI provider abstraction (Anthropic, OpenAI)
-│   └── ui/              # Shared React component library
-├── docker/              # Production Docker configs
-└── .github/workflows/   # CI/CD pipelines
+│   ├── shared/          # Types, constants, Zod validators
+│   ├── crypto/          # AES-256-GCM encryption, PBKDF2
+│   ├── ai-client/       # Claude API wrapper (enrich, reply, chat, vision)
+│   └── ui/              # 10 shared React components + design system
+│
+├── docker/              # Docker Compose (dev + prod), nginx
+└── .github/workflows/   # CI (lint + test) + Release (all platforms)
 ```
 
-### Data Flow
+### Encryption Flow
 
 ```
-Clipboard Copy
-    |
-    v
-Desktop App (encrypts locally)
-    |
-    v
-WebSocket --> Server (stores encrypted blob) --> PostgreSQL + pgvector
-    |
-    v
-All connected clients (decrypt locally)
+User copies text
+       │
+       ▼
+  ┌──────────┐     ┌───────────┐
+  │ Plaintext │────▶│ Claude API │──▶ tags, summary, mood
+  │  (RAM)    │     └───────────┘    (server-side searchable)
+  │           │
+  │           │──▶ AES-256-GCM ──▶ encrypted blob
+  └──────────┘         │              (E2E, server can't read)
+                       ▼
+              ┌─────────────────┐
+              │   Server stores  │
+              │  encrypted blob  │
+              │  + AI metadata   │
+              └─────────────────┘
 ```
 
-## Tech Stack
+---
 
-| Layer | Technology |
-|-------|-----------|
-| **Monorepo** | pnpm workspaces + Turborepo |
-| **Server** | Node.js, Hono, Drizzle ORM |
-| **Database** | PostgreSQL 16 + pgvector |
-| **Cache** | Redis 7 |
-| **Web** | Next.js 15, React, Tailwind CSS |
-| **Desktop** | Electron, Vite |
-| **Encryption** | AES-256-GCM (Web Crypto API) |
-| **AI** | Anthropic Claude, OpenAI (pluggable) |
-| **Storage** | S3-compatible (MinIO / AWS S3) |
-| **CI/CD** | GitHub Actions |
+## 🛠 Tech Stack
 
-## Deployment
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Monorepo** | Turborepo + pnpm | Fast builds, shared packages |
+| **Server** | Express + Socket.io | Proven, WebSocket support |
+| **Database** | PostgreSQL 16 + pgvector | SQL + vector search in one |
+| **Cache** | Redis 7 | Sessions, rate limiting, pub/sub |
+| **Storage** | S3 / MinIO | Encrypted image/file storage |
+| **Web** | Next.js 15 (App Router) | SSR, shared React components |
+| **Desktop** | Electron + Vite | Cross-platform, fast dev |
+| **UI** | React 19 + Tailwind + Framer Motion | Glassmorphism design system |
+| **Encryption** | AES-256-GCM + PBKDF2 | Military-grade, zero-knowledge |
+| **AI** | Claude API (Anthropic) | Best-in-class reasoning |
+| **OCR/Vision** | Claude Vision | Image understanding + text extraction |
+| **Embeddings** | OpenAI text-embedding-3-small | Semantic search vectors |
+| **CI/CD** | GitHub Actions | Lint, test, build, release |
+
+---
+
+## 💰 Pricing
+
+| | Free | Pro | Team |
+|---|:---:|:---:|:---:|
+| **Price** | €0/mo | €6/mo | €12/user/mo |
+| Clips | 1,000 | Unlimited | Unlimited |
+| Devices | 1 | 10 | Unlimited |
+| AI Classification | 100/day | 1,000/hr | 1,000/hr |
+| Cloud Sync | — | ✅ | ✅ |
+| Reply Suggestions | — | ✅ | ✅ |
+| Screen Context | — | ✅ | ✅ |
+| Web Dashboard | — | ✅ | ✅ |
+| AI Chat | — | ✅ | ✅ |
+| Semantic Search | — | ✅ | ✅ |
+| Analytics | — | ✅ | ✅ |
+| Shared Collections | — | — | ✅ |
+| SSO/SAML | — | — | ✅ |
+| Audit Log | — | — | ✅ |
+
+---
+
+## 🚢 Deployment
 
 ### Production (Docker Compose)
 
 ```bash
-# Configure environment
+# Configure
 cp .env.example .env
-# Edit .env with production values
+# Set: DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, ANTHROPIC_API_KEY, etc.
 
 # Deploy
 docker compose -f docker/docker-compose.prod.yml up -d --build
 ```
 
-The production stack includes:
-- **PostgreSQL** (pgvector) for persistent storage
-- **Redis** for caching and pub/sub
-- **MinIO** for file/image storage
-- **Nginx** reverse proxy with SSL termination and rate limiting
-- **Server** and **Web** application containers
+**Production stack includes:**
+- PostgreSQL 16 (pgvector) with persistent volumes
+- Redis 7 with password auth
+- MinIO for S3-compatible storage
+- Express API server
+- Next.js web app
+- Nginx reverse proxy with SSL + rate limiting
 
 ### SSL Certificates
 
-The nginx config expects Let's Encrypt certificates. Set them up with:
-
 ```bash
-certbot certonly --standalone -d ghostclip.com -d app.ghostclip.com -d api.ghostclip.com
+certbot certonly --standalone \
+  -d ghostclip.com \
+  -d app.ghostclip.com \
+  -d api.ghostclip.com
 ```
-
-## Contributing
-
-Contributions are welcome! Here is how to get started:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Make your changes and add tests
-4. Run the full check suite: `pnpm turbo lint test build`
-5. Commit with a descriptive message
-6. Open a pull request against `main`
-
-### Code Style
-
-- TypeScript strict mode everywhere
-- ESLint + Prettier for formatting
-- Conventional commits preferred
-
-### Running Tests
-
-```bash
-# All tests
-pnpm turbo test
-
-# Specific package
-pnpm turbo test --filter=@ghostclip/server
-pnpm turbo test --filter=@ghostclip/crypto
-```
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-<p align="center">
-  Built with care. Your data stays yours.
-</p>
+## 🤝 Contributing
+
+Contributions are welcome! GhostClip is open source and we love PRs.
+
+```bash
+# Fork, clone, install
+git clone https://github.com/YOUR_USER/ghostclip.git
+cd ghostclip && pnpm install
+
+# Create feature branch
+git checkout -b feat/my-feature
+
+# Make changes, add tests
+pnpm turbo test
+
+# Full check
+pnpm turbo lint test build
+
+# Commit & PR
+git commit -m "feat: add my feature"
+git push origin feat/my-feature
+```
+
+### Guidelines
+
+- TypeScript strict mode everywhere
+- Follow existing patterns (check similar modules)
+- Write tests for new features
+- Conventional commits (`feat:`, `fix:`, `chore:`)
+- Keep PRs focused — one feature per PR
+
+---
+
+## 🔑 Keyboard Shortcuts (Desktop)
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Shift+V` | Open Quick Panel |
+| `Ctrl+Shift+F` | Semantic Search |
+| `Ctrl+Shift+R` | Reply Suggestions |
+| `Ctrl+Shift+P` | Pin Last Clip |
+| `Ctrl+Shift+S` | Toggle Screen Context |
+| `Ctrl+Shift+1-9` | Quick-paste pinned clips |
+
+---
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+<br/>
+
+**Built with 🔐 by the GhostClip community**
+
+*Your clipboard. Your data. Your AI.*
+
+<br/>
+
+<a href="https://ghostclip.com">Website</a> · <a href="https://github.com/lennystepn-hue/ghostclip/issues">Issues</a> · <a href="https://github.com/lennystepn-hue/ghostclip/discussions">Discussions</a>
+
+</div>
