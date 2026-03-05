@@ -2,14 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+html, body, #root {
   margin: 0;
+  height: 100%;
   overflow: hidden;
-  user-select: none;
-  -webkit-app-region: drag;
 }
 
-button, input, a, [role="button"] {
+body {
+  user-select: none;
+}
+
+/* Only the title bar is draggable, not the whole body */
+button, input, a, [role="button"], main, .sidebar {
   -webkit-app-region: no-drag;
 }
 

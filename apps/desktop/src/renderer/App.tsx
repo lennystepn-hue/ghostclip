@@ -92,7 +92,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen bg-surface-DEFAULT">
+    <div className="flex h-screen bg-surface-DEFAULT" style={{ WebkitAppRegion: "no-drag" } as any}>
       {/* Title bar (frameless window) */}
       <div
         className="fixed top-0 left-0 right-0 h-8 flex items-center justify-end px-2 z-50"

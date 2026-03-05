@@ -39,21 +39,26 @@ export class ClipboardWatcher {
   }
 
   private check() {
-    const currentHash = this.getCurrentHash();
-    const now = Date.now();
+    try {
+      const currentHash = this.getCurrentHash();
+      const now = Date.now();
 
-    // No change
-    if (currentHash === this.lastHash) return;
+      // No change
+      if (currentHash === this.lastHash) return;
 
-    // Dedup: same content within window
-    if (now - this.lastTimestamp < DEDUP_WINDOW && currentHash === this.lastHash) return;
+      // Dedup: same content within window
+      if (now - this.lastTimestamp < DEDUP_WINDOW && currentHash === this.lastHash) return;
 
-    this.lastHash = currentHash;
-    this.lastTimestamp = now;
+      this.lastHash = currentHash;
+      this.lastTimestamp = now;
 
-    const entry = this.buildEntry();
-    if (entry && this.callback) {
-      this.callback(entry);
+      const entry = this.buildEntry();
+      if (entry && this.callback) {
+        console.log(`[Watcher] New clip detected: ${entry.type} (${entry.content.slice(0, 60)}...)`);
+        this.callback(entry);
+      }
+    } catch (err: any) {
+      console.error("[Watcher] check error:", err.message);
     }
   }
 
