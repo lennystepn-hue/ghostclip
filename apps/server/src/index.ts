@@ -29,11 +29,11 @@ app.get("/health", (_req, res) => {
 });
 
 import { authRouter } from "./modules/auth/router";
+import { clipboardRouter } from "./modules/clipboard/router";
 
 // Mount module routers
 app.use("/api/auth", authRouter);
-// TODO: Mount remaining module routers
-// app.use("/api/clips", clipsRouter);
+app.use("/api/clips", clipboardRouter);
 // app.use("/api/collections", collectionsRouter);
 // app.use("/api/templates", templatesRouter);
 // app.use("/api/ai", aiRouter);
