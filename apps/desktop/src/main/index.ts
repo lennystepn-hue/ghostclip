@@ -189,7 +189,7 @@ app.whenReady().then(() => {
     const clip = {
       id: crypto.randomUUID(),
       type: entry.type,
-      content: entry.content,
+      content: entry.type === "image" ? "[Bild]" : entry.content,
       contentHash: entry.contentHash,
       summary: entry.type === "image" ? "Bild wird analysiert..." : entry.content.slice(0, 100),
       tags: [] as string[],
