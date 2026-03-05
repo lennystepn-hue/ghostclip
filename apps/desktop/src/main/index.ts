@@ -12,6 +12,7 @@ import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnect
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
+import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -75,12 +76,37 @@ function getOAuthToken(): string | null {
     if (oauth?.accessToken && oauth.expiresAt > Date.now()) {
       return oauth.accessToken;
     }
-    console.log("OAuth token expired or missing, AI enrichment disabled");
+    console.log("OAuth token expired or missing");
     return null;
   } catch {
-    console.log("No Claude CLI credentials found, AI enrichment disabled");
     return null;
   }
+}
+
+// Server-side AI proxy for logged-in users without local OAuth
+async function serverAiRequest(endpoint: string, body: any): Promise<any> {
+  const token = getSetting("auth_access_token");
+  const server = getSetting("syncServer", "https://api.ghostclip.188-40-80-251.nip.io");
+  if (!token) return null;
+
+  const res = await fetch(`${server}/api/ai/${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) throw new Error(`Server AI ${res.status}`);
+  return res.json();
+}
+
+// Check if AI is available (either local OAuth or server account)
+function hasAiAccess(oauthToken: string | null): boolean {
+  if (oauthToken) return true;
+  const authToken = getSetting("auth_access_token");
+  return !!authToken;
 }
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
@@ -245,48 +271,70 @@ app.whenReady().then(() => {
     }
 
     // AI enrichment (async — update comes later)
-    if (oauthToken) {
+    // Works with local OAuth (Claude Max) OR via server (for registered users)
+    if (hasAiAccess(oauthToken)) {
       try {
         let result: any;
 
         if (entry.type === "image") {
-          // Vision analysis for images
-          const { analyzeImage } = await import("@ghostclip/ai-client");
-          const visionResult = await analyzeImage({ imageBase64: entry.content, oauthToken });
-          result = {
-            tags: visionResult.tags,
-            summary: visionResult.summary || visionResult.description,
-            mood: visionResult.mood,
-            actions: visionResult.actions,
-            sensitivity: visionResult.sensitivity,
-          };
-          // Store OCR text as searchable content
-          if (visionResult.ocrText) {
-            clip.content = `[Bild] ${visionResult.description}\n\nOCR: ${visionResult.ocrText}`;
+          if (oauthToken) {
+            // Local OAuth: direct API call
+            const { analyzeImage } = await import("@ghostclip/ai-client");
+            const visionResult = await analyzeImage({ imageBase64: entry.content, oauthToken });
+            result = {
+              tags: visionResult.tags,
+              summary: visionResult.summary || visionResult.description,
+              mood: visionResult.mood,
+              actions: visionResult.actions,
+              sensitivity: visionResult.sensitivity,
+            };
+            if (visionResult.ocrText) {
+              clip.content = `[Bild] ${visionResult.description}\n\nOCR: ${visionResult.ocrText}`;
+            } else {
+              clip.content = `[Bild] ${visionResult.description}`;
+            }
           } else {
-            clip.content = `[Bild] ${visionResult.description}`;
+            // Server proxy: send image to our server
+            const visionResult = await serverAiRequest("vision", { imageBase64: entry.content, mediaType: "image/png" });
+            result = {
+              tags: visionResult.tags,
+              summary: visionResult.summary || visionResult.description,
+              mood: visionResult.mood,
+              actions: visionResult.actions,
+              sensitivity: visionResult.sensitivity,
+            };
+            if (visionResult.ocrText) {
+              clip.content = `[Bild] ${visionResult.description}\n\nOCR: ${visionResult.ocrText}`;
+            } else {
+              clip.content = `[Bild] ${visionResult.description}`;
+            }
           }
-          console.log(`Vision analyzed: "${visionResult.description}" OCR: ${visionResult.ocrText?.slice(0, 80) || "none"}`);
+          console.log(`Vision analyzed: "${result.summary}"`);
         } else {
           // Text/URL enrichment with learning context
           const enrichContent = entry.type === "url" && urlMeta
             ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
             : entry.content.slice(0, 2000);
 
-          // Build learning context from recent clips
-          const recentSummary = getRecentClipsSummary(5);
-          const userProfile = getUserProfile();
-          const learningContext = [
-            recentSummary ? `Letzte Clips:\n${recentSummary}` : "",
-            userProfile ? `User-Profil:\n${userProfile}` : "",
-          ].filter(Boolean).join("\n\n");
+          if (oauthToken) {
+            // Local OAuth: direct API call
+            const recentSummary = getRecentClipsSummary(5);
+            const userProfile = getUserProfile();
+            const learningContext = [
+              recentSummary ? `Letzte Clips:\n${recentSummary}` : "",
+              userProfile ? `User-Profil:\n${userProfile}` : "",
+            ].filter(Boolean).join("\n\n");
 
-          result = await enrichClip({
-            type: entry.type,
-            content: enrichContent,
-            oauthToken,
-            recentClipsSummary: learningContext || undefined,
-          });
+            result = await enrichClip({
+              type: entry.type,
+              content: enrichContent,
+              oauthToken,
+              recentClipsSummary: learningContext || undefined,
+            });
+          } else {
+            // Server proxy: send to our server
+            result = await serverAiRequest("enrich", { type: entry.type, content: enrichContent });
+          }
         }
 
         // Update clip with AI data
@@ -317,15 +365,20 @@ app.whenReady().then(() => {
 
         if (isMessage) {
           try {
-            const { generateReplies } = await import("@ghostclip/ai-client");
-            const userStyle = getUsedReplyStyles();
-            const recentContext = getRecentClipsSummary(3);
-            const replies = await generateReplies({
-              message: clip.content.slice(0, 1000),
-              oauthToken,
-              context: recentContext || undefined,
-              userStyle: userStyle ? `Typische Antworten des Users (lerne seinen Stil):\n${userStyle.slice(0, 800)}` : undefined,
-            });
+            let replies: any[];
+            if (oauthToken) {
+              const { generateReplies } = await import("@ghostclip/ai-client");
+              const userStyle = getUsedReplyStyles();
+              const recentContext = getRecentClipsSummary(3);
+              replies = await generateReplies({
+                message: clip.content.slice(0, 1000),
+                oauthToken,
+                context: recentContext || undefined,
+                userStyle: userStyle ? `Typische Antworten des Users (lerne seinen Stil):\n${userStyle.slice(0, 800)}` : undefined,
+              });
+            } else {
+              replies = await serverAiRequest("replies", { message: clip.content.slice(0, 1000) });
+            }
             if (replies.length > 0) {
               mainWindow?.webContents.send("reply:suggestions", { clipId: clip.id, replies });
               sendToWidget("reply:suggestions", { clipId: clip.id, replies });
@@ -389,6 +442,29 @@ app.whenReady().then(() => {
     connectSync(token, server || "http://localhost:4000");
     return true;
   });
+
+  // IPC: Auth
+  ipcMain.handle("auth:state", () => getAuthState());
+  ipcMain.handle("auth:register", async (_e, email: string, password: string, server?: string) => {
+    return authRegister(email, password, server);
+  });
+  ipcMain.handle("auth:login", async (_e, email: string, password: string, server?: string) => {
+    return authLogin(email, password, server);
+  });
+  ipcMain.handle("auth:logout", async () => {
+    await authLogout();
+    return true;
+  });
+
+  // Auto-refresh tokens if logged in
+  const authState = getAuthState();
+  if (authState.loggedIn) {
+    startTokenRefresh();
+    // Auto-connect sync on startup
+    const token = getSetting("auth_access_token");
+    const server = getSetting("syncServer", "https://api.ghostclip.188-40-80-251.nip.io");
+    if (token) connectSync(token, server);
+  }
 
   // IPC: Get all clips (from SQLite)
   ipcMain.handle("clips:list", () => getAllClips());
@@ -463,14 +539,16 @@ app.whenReady().then(() => {
   ipcMain.on("window:close", () => mainWindow?.hide());
   ipcMain.on("quickpanel:toggle", () => toggleQuickPanel());
 
-  // IPC: Reply suggestions
+  // IPC: Reply suggestions (local OAuth or server proxy)
   ipcMain.handle("ai:replies", async (_e, message: string, context?: string) => {
     const token = getOAuthToken();
-    if (!token) return [];
     try {
-      const { generateReplies } = await import("@ghostclip/ai-client");
-      const replies = await generateReplies({ message, context, oauthToken: token });
-      return replies;
+      if (token) {
+        const { generateReplies } = await import("@ghostclip/ai-client");
+        return await generateReplies({ message, context, oauthToken: token });
+      }
+      // Server fallback for registered users
+      return await serverAiRequest("replies", { message }) || [];
     } catch (err: any) {
       console.error("Reply generation failed:", err.message);
       return [];
@@ -480,7 +558,7 @@ app.whenReady().then(() => {
   // IPC: AI Chat — full DB access: recent clips + keyword search across entire history
   ipcMain.handle("ai:chat", async (_e, message: string) => {
     const token = getOAuthToken();
-    if (!token) return "OAuth Token abgelaufen. Bitte Claude CLI neu authentifizieren.";
+    if (!token && !getSetting("auth_access_token")) return "Bitte einloggen oder Claude CLI einrichten fuer AI-Features.";
     try {
       const { chat } = await import("@ghostclip/ai-client");
 
@@ -530,7 +608,14 @@ app.whenReady().then(() => {
         content: m.text,
       }));
 
-      const response = await chat({ message, oauthToken: token, clipContext, conversationHistory });
+      let response: string;
+      if (token) {
+        response = await chat({ message, oauthToken: token, clipContext, conversationHistory });
+      } else {
+        // Server proxy for registered users
+        const serverResult = await serverAiRequest("chat", { message, conversationHistory });
+        response = serverResult?.response || "Server-Fehler";
+      }
 
       // Persist both messages
       addChatMessage("user", message);
@@ -567,13 +652,16 @@ app.whenReady().then(() => {
     }];
   });
 
-  // IPC: Vision/OCR
+  // IPC: Vision/OCR (local OAuth or server proxy)
   ipcMain.handle("ai:vision", async (_e, base64Image: string) => {
     const token = getOAuthToken();
-    if (!token) return null;
     try {
-      const { analyzeImage } = await import("@ghostclip/ai-client");
-      return await analyzeImage({ imageBase64: base64Image, oauthToken: token });
+      if (token) {
+        const { analyzeImage } = await import("@ghostclip/ai-client");
+        return await analyzeImage({ imageBase64: base64Image, oauthToken: token });
+      }
+      // Server fallback
+      return await serverAiRequest("vision", { imageBase64: base64Image, mediaType: "image/png" });
     } catch (err: any) {
       console.error("Vision failed:", err.message);
       return null;

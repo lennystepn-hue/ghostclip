@@ -1,15 +1,39 @@
 import { enrichClip, generateReplies, chat, analyzeImage } from "@ghostclip/ai-client";
 import { generateEmbedding } from "./embedding";
 import { pool } from "../../database/connection";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+
+// Fallback: read local Claude OAuth token (same server machine)
+function getOAuthToken(): string | null {
+  if (ANTHROPIC_API_KEY) return null; // prefer API key
+  try {
+    const credsPath = join(process.env.HOME || "/root", ".claude", ".credentials.json");
+    const creds = JSON.parse(readFileSync(credsPath, "utf-8"));
+    const oauth = creds.claudeAiOauth;
+    if (oauth?.accessToken && oauth.expiresAt > Date.now()) {
+      return oauth.accessToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthHeaders(): { apiKey?: string; oauthToken?: string } {
+  if (ANTHROPIC_API_KEY) return { apiKey: ANTHROPIC_API_KEY };
+  const token = getOAuthToken();
+  if (token) return { oauthToken: token };
+  return {};
+}
 
 export async function enrichClipContent(input: {
   type: "text" | "image" | "file" | "url";
   content: string;
   userId: string;
 }) {
-  // Get recent clips for context
   const recentResult = await pool.query(
     "SELECT summary, tags FROM clips WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10",
     [input.userId],
@@ -22,11 +46,10 @@ export async function enrichClipContent(input: {
   const enrichment = await enrichClip({
     type: input.type,
     content: input.content,
-    apiKey: ANTHROPIC_API_KEY,
+    ...getAuthHeaders(),
     recentClipsSummary: recentContext || undefined,
   });
 
-  // Generate embedding for semantic search
   const textForEmbedding = [input.content, enrichment.summary, ...enrichment.tags].join(" ");
   const embedding = await generateEmbedding(textForEmbedding).catch(() => []);
 
@@ -38,7 +61,6 @@ export async function getReplySuggestions(input: {
   userId: string;
   template?: string;
 }) {
-  // Build context from recent clips
   const recentResult = await pool.query(
     "SELECT summary, tags, mood FROM clips WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
     [input.userId],
@@ -50,7 +72,7 @@ export async function getReplySuggestions(input: {
 
   return generateReplies({
     message: input.message,
-    apiKey: ANTHROPIC_API_KEY,
+    ...getAuthHeaders(),
     context: context || undefined,
     template: input.template,
   });
@@ -61,7 +83,6 @@ export async function chatWithClips(input: {
   userId: string;
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }>;
 }) {
-  // Get clip metadata for context
   const clipsResult = await pool.query(
     "SELECT summary, tags, mood, type, created_at FROM clips WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50",
     [input.userId],
@@ -76,7 +97,7 @@ export async function chatWithClips(input: {
 
   return chat({
     message: input.message,
-    apiKey: ANTHROPIC_API_KEY,
+    ...getAuthHeaders(),
     clipContext,
     conversationHistory: input.conversationHistory,
   });
@@ -88,10 +109,9 @@ export async function analyzeClipImage(input: {
 }) {
   const result = await analyzeImage({
     ...input,
-    apiKey: ANTHROPIC_API_KEY,
+    ...getAuthHeaders(),
   });
 
-  // Generate embedding from OCR text + description
   const textForEmbedding = [result.ocrText, result.description, result.summary, ...result.tags].join(" ");
   const embedding = await generateEmbedding(textForEmbedding).catch(() => []);
 
