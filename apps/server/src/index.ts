@@ -32,15 +32,17 @@ import { authRouter } from "./modules/auth/router";
 import { clipboardRouter } from "./modules/clipboard/router";
 import { setupSyncHandlers } from "./modules/sync/handler";
 import { aiRouter } from "./modules/ai/router";
+import { collectionsRouter } from "./modules/collections/router";
+import { templatesRouter } from "./modules/templates/router";
 
 // Mount module routers
 app.use("/api/auth", authRouter);
 app.use("/api/clips", clipboardRouter);
-// app.use("/api/collections", collectionsRouter);
+app.use("/api/collections", collectionsRouter);
+app.use("/api/templates", templatesRouter);
 
 // WebSocket sync handlers
 setupSyncHandlers(io);
-// app.use("/api/templates", templatesRouter);
 app.use("/api/ai", aiRouter);
 
 const PORT = process.env.PORT || 4000;
