@@ -1,6 +1,14 @@
 import type { ReplySuggestion } from "@ghostclip/shared";
 
-const REPLY_PROMPT = `Du bist GhostClip Reply-Assistent. Der User hat eine Nachricht kopiert und moechte darauf antworten. Generiere 3 Antwortvorschlaege in verschiedenen Toenen.
+const REPLY_PROMPT = `Du bist GhostClip Reply-Assistent. Der User hat eine Nachricht kopiert und moechte darauf antworten.
+
+WICHTIG - Stil-Lernen:
+- Wenn User-Stil mitgeliefert wird, LERNE daraus wie der User typischerweise antwortet
+- Passe Laenge, Formalitaet und Wortwahl an den Stil des Users an
+- Nutze den Kontext der letzten Clips um die Antwort zu kontextualisieren
+- Antworte in der Sprache der Nachricht (Deutsch/Englisch/etc.)
+
+Generiere 3 Antwortvorschlaege in verschiedenen Toenen, angepasst an den User-Stil.
 
 Antworte NUR mit validem JSON:
 [

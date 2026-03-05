@@ -352,6 +352,53 @@ export function getClipsWithEmbeddings(): { id: string; embedding: number[]; sum
   }));
 }
 
+// Learning context: build a summary of recent clips for AI enrichment context
+export function getRecentClipsSummary(limit = 5): string {
+  const rows = db.prepare(
+    `SELECT summary, tags, mood, type, source_app FROM clips WHERE enriched = 1 AND archived = 0 ORDER BY created_at DESC LIMIT ?`
+  ).all(limit) as any[];
+  if (rows.length === 0) return "";
+  return rows.map((r, i) => {
+    const tags = JSON.parse(r.tags || "[]").join(", ");
+    return `${i + 1}. [${r.type}] ${r.summary || "?"} | Tags: ${tags} | Mood: ${r.mood || "?"} | App: ${r.source_app || "?"}`;
+  }).join("\n");
+}
+
+// Learning context: get user's top tags (shows interests/work patterns)
+export function getUserProfile(): string {
+  const tagRows = db.prepare("SELECT tags FROM clips WHERE tags != '[]' AND archived = 0 ORDER BY created_at DESC LIMIT 100").all() as any[];
+  const tagCounts: Record<string, number> = {};
+  for (const row of tagRows) {
+    for (const tag of JSON.parse(row.tags)) {
+      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+    }
+  }
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+
+  const moodRows = db.prepare("SELECT mood, COUNT(*) as c FROM clips WHERE mood IS NOT NULL AND archived = 0 GROUP BY mood ORDER BY c DESC LIMIT 5").all() as any[];
+
+  const typeRows = db.prepare("SELECT type, COUNT(*) as c FROM clips WHERE archived = 0 GROUP BY type ORDER BY c DESC").all() as any[];
+
+  const appRows = db.prepare("SELECT source_app, COUNT(*) as c FROM clips WHERE source_app IS NOT NULL AND archived = 0 GROUP BY source_app ORDER BY c DESC LIMIT 5").all() as any[];
+
+  let profile = "";
+  if (topTags.length > 0) profile += `Haeufige Themen: ${topTags.map(([t, c]) => `${t}(${c})`).join(", ")}\n`;
+  if (moodRows.length > 0) profile += `Typische Stimmungen: ${moodRows.map((m: any) => `${m.mood}(${m.c})`).join(", ")}\n`;
+  if (typeRows.length > 0) profile += `Clip-Typen: ${typeRows.map((t: any) => `${t.type}(${t.c})`).join(", ")}\n`;
+  if (appRows.length > 0) profile += `Meistgenutzte Apps: ${appRows.map((a: any) => `${a.source_app}(${a.c})`).join(", ")}\n`;
+  return profile;
+}
+
+// Learning: track which replies the user actually copies (to learn their style)
+export function getUsedReplyStyles(): string {
+  // Look for clips that were likely replies (short text, after a message was detected)
+  const rows = db.prepare(
+    `SELECT content FROM clips WHERE type = 'text' AND length(content) < 500 AND length(content) > 20 AND archived = 0 ORDER BY created_at DESC LIMIT 20`
+  ).all() as any[];
+  if (rows.length === 0) return "";
+  return rows.map((r: any) => r.content).join("\n---\n");
+}
+
 // Clear all clips (panic button)
 export function clearAllClips() {
   db.prepare("DELETE FROM clips").run();

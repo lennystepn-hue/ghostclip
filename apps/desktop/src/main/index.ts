@@ -42,6 +42,9 @@ import {
   createSmartCollection,
   getSmartCollectionClips,
   importClips,
+  getRecentClipsSummary,
+  getUserProfile,
+  getUsedReplyStyles,
 } from "./db";
 
 // Allow running as root (dev/container environments)
@@ -244,15 +247,24 @@ app.whenReady().then(() => {
           }
           console.log(`Vision analyzed: "${visionResult.description}" OCR: ${visionResult.ocrText?.slice(0, 80) || "none"}`);
         } else {
-          // Text/URL enrichment
+          // Text/URL enrichment with learning context
           const enrichContent = entry.type === "url" && urlMeta
             ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
             : entry.content.slice(0, 2000);
+
+          // Build learning context from recent clips
+          const recentSummary = getRecentClipsSummary(5);
+          const userProfile = getUserProfile();
+          const learningContext = [
+            recentSummary ? `Letzte Clips:\n${recentSummary}` : "",
+            userProfile ? `User-Profil:\n${userProfile}` : "",
+          ].filter(Boolean).join("\n\n");
 
           result = await enrichClip({
             type: entry.type,
             content: enrichContent,
             oauthToken,
+            recentClipsSummary: learningContext || undefined,
           });
         }
 
@@ -285,7 +297,14 @@ app.whenReady().then(() => {
         if (isMessage) {
           try {
             const { generateReplies } = await import("@ghostclip/ai-client");
-            const replies = await generateReplies({ message: clip.content.slice(0, 1000), oauthToken });
+            const userStyle = getUsedReplyStyles();
+            const recentContext = getRecentClipsSummary(3);
+            const replies = await generateReplies({
+              message: clip.content.slice(0, 1000),
+              oauthToken,
+              context: recentContext || undefined,
+              userStyle: userStyle ? `Typische Antworten des Users (lerne seinen Stil):\n${userStyle.slice(0, 800)}` : undefined,
+            });
             if (replies.length > 0) {
               mainWindow?.webContents.send("reply:suggestions", { clipId: clip.id, replies });
               sendToWidget("reply:suggestions", { clipId: clip.id, replies });
