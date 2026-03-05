@@ -50,6 +50,15 @@ import {
 // Allow running as root (dev/container environments)
 app.commandLine.appendSwitch("no-sandbox");
 
+// Prevent crash on EPIPE/broken pipe errors
+process.on("uncaughtException", (err) => {
+  if ((err as any).code === "EPIPE" || err.message?.includes("EPIPE")) {
+    console.log("EPIPE error caught (harmless):", err.message);
+    return;
+  }
+  console.error("Uncaught exception:", err);
+});
+
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 
@@ -167,19 +176,25 @@ app.whenReady().then(() => {
   function getActiveWindow(): string {
     try {
       if (process.platform === "linux") {
-        const name = execSync("xdotool getactivewindow getwindowname 2>/dev/null", { encoding: "utf-8", timeout: 1000 }).trim();
+        const name = execSync("xdotool getactivewindow getwindowname", {
+          encoding: "utf-8",
+          timeout: 2000,
+          stdio: ["pipe", "pipe", "ignore"],
+        }).trim();
         return name;
       }
       return "";
-    } catch { return ""; }
+    } catch { return lastActiveApp; }
   }
 
   setInterval(() => {
-    const appName = getActiveWindow();
-    if (appName !== lastActiveApp) {
-      lastActiveApp = appName;
-      mainWindow?.webContents.send("context:activeApp", appName);
-    }
+    try {
+      const appName = getActiveWindow();
+      if (appName && appName !== lastActiveApp) {
+        lastActiveApp = appName;
+        mainWindow?.webContents.send("context:activeApp", appName);
+      }
+    } catch { /* ignore */ }
   }, 5000);
 
   // Clipboard watcher

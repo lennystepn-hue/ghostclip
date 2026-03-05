@@ -8,9 +8,10 @@ let replyPanel: BrowserWindow | null = null;
 /** Read X11 PRIMARY selection (text selected with mouse, not Ctrl+C) */
 export function getX11Selection(): string {
   try {
-    return execSync("xclip -selection primary -o 2>/dev/null", {
+    return execSync("xclip -selection primary -o", {
       encoding: "utf-8",
-      timeout: 1000,
+      timeout: 2000,
+      stdio: ["pipe", "pipe", "ignore"],
     }).trim();
   } catch {
     return "";
