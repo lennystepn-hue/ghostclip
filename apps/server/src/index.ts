@@ -28,8 +28,11 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// TODO: Mount module routers
-// app.use("/api/auth", authRouter);
+import { authRouter } from "./modules/auth/router";
+
+// Mount module routers
+app.use("/api/auth", authRouter);
+// TODO: Mount remaining module routers
 // app.use("/api/clips", clipsRouter);
 // app.use("/api/collections", collectionsRouter);
 // app.use("/api/templates", templatesRouter);
@@ -43,6 +46,8 @@ async function start() {
   });
 }
 
-start().catch(console.error);
+if (process.env.NODE_ENV !== "test") {
+  start().catch(console.error);
+}
 
 export { app, httpServer, io };
