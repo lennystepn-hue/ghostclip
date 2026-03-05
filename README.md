@@ -12,7 +12,7 @@
 
 <br/>
 
-[![Release](https://img.shields.io/github/v/release/lennystepn-hue/ghostclip?style=for-the-badge&color=5c7cfa&label=Download)](https://github.com/lennystepn-hue/ghostclip/releases)
+[![Version](https://img.shields.io/badge/version-0.1.0-5c7cfa?style=for-the-badge)](https://github.com/lennystepn-hue/ghostclip/releases)
 &nbsp;&nbsp;
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 &nbsp;&nbsp;
@@ -24,7 +24,7 @@
 
 <br/>
 
-[Download](#-download) · [Features](#-what-it-does) · [Screenshots](#-screenshots) · [How AI Works](#-how-the-ai-works) · [Self-Hosting](#-self-hosting) · [Architecture](#-architecture) · [Contributing](#-contributing)
+[Features](#-what-it-does) · [Screenshots](#-screenshots) · [Pricing](#-pricing) · [Download](#-download) · [Self-Hosting](#-self-hosting) · [Architecture](#-architecture) · [Contributing](#-contributing)
 
 <br/>
 </div>
@@ -97,7 +97,7 @@ Same app, everywhere:
 </td>
 <td width="50%" valign="top">
 
-### Cloud Sync (optional)
+### Cloud Sync
 Create an account directly in the app:
 
 - **Real-time sync** via WebSocket (< 500ms)
@@ -105,7 +105,6 @@ Create an account directly in the app:
 - **Conflict resolution** across devices
 - **Server-side AI** — no local API keys needed
 - **E2E encryption** — server never sees your content
-- **100% optional** — works fully offline without account
 
 </td>
 </tr>
@@ -143,18 +142,64 @@ Create an account directly in the app to enable cross-device sync. All AI featur
 
 <br/>
 
+## Pricing
+
+<div align="center">
+
+| | **Community** | **Pro** | **Team** |
+|:---|:---:|:---:|:---:|
+| | Self-hosted | Cloud | Cloud |
+| **Price** | **Free** | **5 EUR / month** | **10 EUR / user / month** |
+| | | | |
+| Clipboard History | Unlimited | Unlimited | Unlimited |
+| AI Tagging & Summaries | &#10003; (own API key) | &#10003; | &#10003; |
+| Vision & OCR | &#10003; (own API key) | &#10003; | &#10003; |
+| AI Chat | &#10003; (own API key) | &#10003; | &#10003; |
+| Reply Suggestions | &#10003; (own API key) | &#10003; | &#10003; |
+| Semantic Search | &#10003; | &#10003; | &#10003; |
+| Local Storage (SQLite) | &#10003; | &#10003; | &#10003; |
+| | | | |
+| **Cloud Sync** | — | &#10003; | &#10003; |
+| Devices | 1 | Up to 10 | Unlimited |
+| Server-side AI (no API key needed) | — | &#10003; | &#10003; |
+| Web Dashboard | — | &#10003; | &#10003; |
+| Priority Support | — | &#10003; | &#10003; |
+| Shared Collections | — | — | &#10003; |
+| Team Analytics | — | — | &#10003; |
+| SSO / SAML | — | — | &#10003; |
+
+</div>
+
+<br/>
+
+> **Community** is 100% free and open source. Self-host everything, bring your own Anthropic API key, keep all data on your machine. No limits, no tracking, no account needed.
+>
+> **Pro** and **Team** use our managed cloud — we handle the server, the AI, and the sync. Create an account in the app, pay monthly, done.
+
+<br/>
+
+---
+
+<br/>
+
 ## Download
 
-| Platform | Download | Size |
-|:---------|:---------|:-----|
-| **Linux** (AppImage) | [GhostClip-0.1.0-x86_64.AppImage](https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip-0.1.0-x86_64.AppImage) | ~90 MB |
-| **Linux** (Debian/Ubuntu) | [GhostClip-0.1.0-amd64.deb](https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip-0.1.0-amd64.deb) | ~65 MB |
-| **macOS** | [GhostClip-0.1.0-x64.dmg](https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip-0.1.0-x64.dmg) | ~95 MB |
-| **Windows** | [GhostClip-0.1.0-x64.exe](https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip-0.1.0-x64.exe) | ~75 MB |
+### GhostClip Cloud (Pro / Team)
 
-**AppImage users:** Make it executable with `chmod +x GhostClip-*.AppImage`, then run it.
+Download the app and create an account — AI and sync work instantly.
 
-Or [build from source](#-self-hosting).
+| Platform | Download |
+|:---------|:---------|
+| **Linux** (AppImage) | [GhostClip-0.1.0-x86_64.AppImage](https://ghostclip.app/download/linux) |
+| **Linux** (Debian/Ubuntu) | [GhostClip-0.1.0-amd64.deb](https://ghostclip.app/download/deb) |
+| **macOS** | [GhostClip-0.1.0-x64.dmg](https://ghostclip.app/download/mac) |
+| **Windows** | [GhostClip-0.1.0-x64.exe](https://ghostclip.app/download/windows) |
+
+### GhostClip Community (Self-Hosted)
+
+Build from source — see [Self-Hosting](#-self-hosting) below.
+
+Releases are also available on [GitHub Releases](https://github.com/lennystepn-hue/ghostclip/releases).
 
 <br/>
 
@@ -166,11 +211,11 @@ Or [build from source](#-self-hosting).
 
 GhostClip uses Claude (by Anthropic) for all AI features. There are two modes:
 
-### Local Mode (no account needed)
-If you have [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed with a Max plan, GhostClip reads your OAuth token from `~/.claude/.credentials.json` and calls the Anthropic API directly from your machine. No data leaves your device except to Anthropic.
+### Self-Hosted (Community)
+Bring your own Anthropic API key (`ANTHROPIC_API_KEY`) or use [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) with a Max plan. GhostClip calls the API directly from your machine. No data leaves your device except to Anthropic.
 
-### Cloud Mode (with account)
-When you create a GhostClip account, AI requests go through our server. The server holds the API key — you don't need one. Your clips are sent to the server for enrichment, then the AI response (tags, summary, etc.) comes back to your device.
+### Cloud (Pro / Team)
+When you create a GhostClip account, AI requests go through our server. We hold the API key — you don't need one. Your clips are sent to our server for AI enrichment, then the response comes back to your device. Clip content is encrypted in transit (TLS) and at rest (AES-256-GCM).
 
 **Which model does what?**
 
@@ -188,13 +233,14 @@ When you create a GhostClip account, AI requests go through our server. The serv
 
 ## Self-Hosting
 
-Want to run your own GhostClip server? Everything is open source.
+The entire stack is open source. Run your own GhostClip server with full AI, sync, and dashboard.
 
 ### Prerequisites
 
 - Node.js >= 22
 - pnpm >= 9
 - Docker (for PostgreSQL + Redis)
+- Anthropic API key (for AI features)
 
 ### Setup
 
@@ -208,7 +254,7 @@ docker compose up -d
 
 # 3. Configure server
 cp apps/server/.env.example apps/server/.env
-# Edit: JWT_SECRET, ANTHROPIC_API_KEY (optional)
+# Set: JWT_SECRET, ANTHROPIC_API_KEY
 
 # 4. Initialize database
 cd apps/server && pnpm db:init
@@ -234,14 +280,13 @@ Output goes to `apps/desktop/release/`.
 
 ### Production Deployment
 
-The server runs on Express + Socket.io. Put it behind nginx or Caddy with SSL:
+Put the server behind nginx or Caddy with SSL:
 
 ```bash
-# Example: Let's Encrypt with nginx
 certbot --nginx -d api.your-domain.com
 ```
 
-Point the desktop app to your server via Settings or the "Eigenen Server verwenden" option during login.
+Point the desktop app to your server via the "Eigenen Server verwenden" option during login.
 
 <br/>
 
