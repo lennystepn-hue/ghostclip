@@ -1,107 +1,152 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-interface Settings {
+interface SettingsState {
   clipboardWatcher: boolean;
-  screenContext: boolean;
   notifications: boolean;
+  screenContext: boolean;
   autoExpireSensitive: boolean;
-  autoExpireMinutes: number;
-  excludedApps: string[];
-  theme: "dark" | "light" | "system";
+  aiModel: string;
+  [key: string]: any;
 }
 
 export function SettingsView() {
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<SettingsState>({
     clipboardWatcher: true,
-    screenContext: false,
     notifications: true,
+    screenContext: false,
     autoExpireSensitive: true,
-    autoExpireMinutes: 5,
-    excludedApps: [],
-    theme: "dark",
+    aiModel: "gpt-4o-mini",
   });
+  const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
 
-  const toggle = (key: keyof Settings) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  useEffect(() => {
+    const api = (window as any).ghostclip;
+    api?.getSettings?.().then((s: any) => {
+      if (s) {
+        setSettings({
+          clipboardWatcher: s.clipboardWatcher !== "false",
+          notifications: s.notifications !== "false",
+          screenContext: s.screenContext === "true",
+          autoExpireSensitive: s.autoExpireSensitive !== "false",
+          aiModel: s.aiModel || "gpt-4o-mini",
+        });
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  const toggle = async (key: string) => {
+    const newVal = !settings[key];
+    setSettings(prev => ({ ...prev, [key]: newVal }));
+    const api = (window as any).ghostclip;
+    await api?.updateSetting?.(key, String(newVal));
   };
 
+  const handleClearAll = async () => {
+    if (clearing) return;
+    setClearing(true);
+    const api = (window as any).ghostclip;
+    await api?.clearAllClips?.();
+    setClearing(false);
+  };
+
+  if (loading) return <div style={{ padding: "40px", color: "#5c5c75", textAlign: "center" }}>Laden...</div>;
+
   return (
-    <div className="space-y-6 max-w-2xl">
-      <section>
-        <h2 className="text-lg font-semibold text-surface-900 mb-4">
-          Allgemein
-        </h2>
-        <div className="space-y-3">
-          <SettingToggle
-            label="Clipboard Watcher"
-            description="Ueberwacht die Zwischenablage automatisch"
-            checked={settings.clipboardWatcher as boolean}
-            onChange={() => toggle("clipboardWatcher")}
-          />
-          <SettingToggle
-            label="Benachrichtigungen"
-            description="Desktop-Benachrichtigungen bei neuen Clips"
-            checked={settings.notifications as boolean}
-            onChange={() => toggle("notifications")}
-          />
-        </div>
-      </section>
+    <div style={{ maxWidth: "600px" }}>
+      {/* Allgemein */}
+      <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e0e0e8", marginBottom: "16px" }}>Allgemein</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "28px" }}>
+        <SettingToggle
+          label="Clipboard Watcher"
+          description="Ueberwacht die Zwischenablage automatisch"
+          checked={settings.clipboardWatcher}
+          onChange={() => toggle("clipboardWatcher")}
+        />
+        <SettingToggle
+          label="Benachrichtigungen"
+          description="Desktop-Benachrichtigungen bei neuen Clips"
+          checked={settings.notifications}
+          onChange={() => toggle("notifications")}
+        />
+      </div>
 
-      <section>
-        <h2 className="text-lg font-semibold text-surface-900 mb-4">
-          Privacy
-        </h2>
-        <div className="space-y-3">
-          <SettingToggle
-            label="Screen Context"
-            description="Bildschirmkontext fuer bessere Vorschlaege (opt-in)"
-            checked={settings.screenContext as boolean}
-            onChange={() => toggle("screenContext")}
-          />
-          <SettingToggle
-            label="Sensible Daten automatisch loeschen"
-            description="Passwoerter und Tokens nach 5 Minuten entfernen"
-            checked={settings.autoExpireSensitive as boolean}
-            onChange={() => toggle("autoExpireSensitive")}
-          />
-        </div>
-      </section>
+      {/* Privacy */}
+      <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e0e0e8", marginBottom: "16px" }}>Privacy</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "28px" }}>
+        <SettingToggle
+          label="Screen Context"
+          description="Bildschirmkontext fuer bessere Vorschlaege (opt-in)"
+          checked={settings.screenContext}
+          onChange={() => toggle("screenContext")}
+        />
+        <SettingToggle
+          label="Sensible Daten automatisch loeschen"
+          description="Passwoerter und Tokens nach 5 Minuten entfernen"
+          checked={settings.autoExpireSensitive}
+          onChange={() => toggle("autoExpireSensitive")}
+        />
+      </div>
 
-      <section>
-        <h2 className="text-lg font-semibold text-surface-900 mb-4">
-          Ausgeschlossene Apps
-        </h2>
-        <p className="text-sm text-surface-600 mb-2">
-          Clips aus diesen Apps werden nicht erfasst
+      {/* AI Model */}
+      <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e0e0e8", marginBottom: "16px" }}>AI Modell</h2>
+      <div style={{
+        padding: "12px 16px",
+        borderRadius: "12px",
+        background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+        border: "1px solid rgba(255,255,255,0.05)",
+        marginBottom: "28px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}>
+        <div>
+          <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>Aktives Modell</p>
+          <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>Wird fuer Enrichment und Chat verwendet</p>
+        </div>
+        <span style={{
+          fontSize: "12px",
+          fontFamily: "'JetBrains Mono', monospace",
+          color: "#91a7ff",
+          background: "rgba(66,99,235,0.12)",
+          border: "1px solid rgba(66,99,235,0.15)",
+          padding: "4px 10px",
+          borderRadius: "6px",
+        }}>
+          {settings.aiModel}
+        </span>
+      </div>
+
+      {/* Danger Zone */}
+      <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#ef4444", marginBottom: "16px" }}>Danger Zone</h2>
+      <div style={{
+        padding: "16px",
+        borderRadius: "12px",
+        background: "rgba(239,68,68,0.05)",
+        border: "1px solid rgba(239,68,68,0.15)",
+      }}>
+        <p style={{ fontSize: "12px", color: "#c4c4d4", marginBottom: "12px" }}>
+          Alle gespeicherten Clips unwiderruflich loeschen. Diese Aktion kann nicht rueckgaengig gemacht werden.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {["1Password", "KeePass", "Banking"].map((app) => (
-            <span
-              key={app}
-              className="px-3 py-1.5 text-sm rounded-lg bg-surface-300 text-surface-800 border border-surface-400"
-            >
-              {app} x
-            </span>
-          ))}
-          <button className="px-3 py-1.5 text-sm rounded-lg bg-ghost-600/20 text-ghost-300 hover:bg-ghost-600/30 transition-colors">
-            + Hinzufuegen
-          </button>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold text-surface-900 mb-4">
-          Danger Zone
-        </h2>
-        <div className="space-y-2">
-          <button className="px-4 py-2 text-sm rounded-lg bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">
-            Alle lokalen Daten loeschen
-          </button>
-          <button className="px-4 py-2 text-sm rounded-lg bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors ml-2">
-            Panic: Alles ueberall loeschen
-          </button>
-        </div>
-      </section>
+        <button
+          onClick={handleClearAll}
+          disabled={clearing}
+          style={{
+            background: "rgba(239,68,68,0.15)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "#ef4444",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            cursor: clearing ? "not-allowed" : "pointer",
+            fontWeight: 600,
+            opacity: clearing ? 0.5 : 1,
+          }}
+        >
+          {clearing ? "Loesche..." : "Alle Clips loeschen"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -118,22 +163,44 @@ function SettingToggle({
   onChange: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-xl bg-glass border border-white/5">
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 16px",
+      borderRadius: "12px",
+      background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+      border: "1px solid rgba(255,255,255,0.05)",
+    }}>
       <div>
-        <p className="text-sm font-medium text-surface-900">{label}</p>
-        <p className="text-xs text-surface-600 mt-0.5">{description}</p>
+        <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>{label}</p>
+        <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>{description}</p>
       </div>
       <button
         onClick={onChange}
-        className={`w-10 h-5 rounded-full transition-colors duration-200 relative ${
-          checked ? "bg-ghost-600" : "bg-surface-400"
-        }`}
+        style={{
+          width: "40px",
+          height: "20px",
+          borderRadius: "10px",
+          border: "none",
+          background: checked ? "#4263eb" : "rgba(255,255,255,0.1)",
+          cursor: "pointer",
+          position: "relative",
+          transition: "background 0.2s",
+          flexShrink: 0,
+          marginLeft: "12px",
+        }}
       >
-        <span
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
-            checked ? "left-5" : "left-0.5"
-          }`}
-        />
+        <span style={{
+          position: "absolute",
+          top: "2px",
+          left: checked ? "22px" : "2px",
+          width: "16px",
+          height: "16px",
+          borderRadius: "50%",
+          background: "white",
+          transition: "left 0.2s",
+        }} />
       </button>
     </div>
   );

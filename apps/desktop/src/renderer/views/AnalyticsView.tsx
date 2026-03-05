@@ -1,49 +1,48 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   AnalyticsBarChart,
   AnalyticsPieChart,
   TagCloud,
 } from "@ghostclip/ui";
 
+interface Stats {
+  total: number;
+  pinned: number;
+  today: number;
+  thisWeek: number;
+  byType: Record<string, number>;
+  topTags: { name: string; count: number }[];
+  weeklyActivity: { name: string; value: number }[];
+}
+
 export function AnalyticsView() {
-  // Demo data
-  const weeklyData = [
-    { name: "Mo", value: 89 },
-    { name: "Di", value: 72 },
-    { name: "Mi", value: 81 },
-    { name: "Do", value: 68 },
-    { name: "Fr", value: 52 },
-    { name: "Sa", value: 23 },
-    { name: "So", value: 15 },
-  ];
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const typeData = [
-    { name: "Text", value: 234 },
-    { name: "Bilder", value: 42 },
-    { name: "URLs", value: 67 },
-    { name: "Code", value: 89 },
-    { name: "Dateien", value: 15 },
-  ];
+  useEffect(() => {
+    const api = (window as any).ghostclip;
+    api?.getStats?.().then((s: any) => {
+      setStats(s || null);
+      setLoading(false);
+    });
+  }, []);
 
-  const topTags = [
-    { name: "email", count: 67 },
-    { name: "code", count: 43 },
-    { name: "rechnung", count: 28 },
-    { name: "github", count: 24 },
-    { name: "meeting", count: 15 },
-    { name: "link", count: 12 },
-    { name: "passwort", count: 8 },
-  ];
+  if (loading) return <div style={{ padding: "40px", color: "#5c5c75", textAlign: "center" }}>Laden...</div>;
+  if (!stats) return <div style={{ padding: "40px", color: "#4a4a60", textAlign: "center" }}>Keine Statistiken verfuegbar.</div>;
+
+  const typeData = Object.entries(stats.byType || {}).map(([name, value]) => ({ name, value }));
+  const weeklyData = stats.weeklyActivity || [];
+  const topTags = stats.topTags || [];
 
   return (
     <div className="space-y-6">
       {/* Stats Summary */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "Clips diese Woche", value: "400" },
-          { label: "Bilder", value: "42" },
-          { label: "Code-Snippets", value: "89" },
-          { label: "Gepinnt", value: "12" },
+          { label: "Gesamt", value: String(stats.total || 0) },
+          { label: "Heute", value: String(stats.today || 0) },
+          { label: "Diese Woche", value: String(stats.thisWeek || 0) },
+          { label: "Gepinnt", value: String(stats.pinned || 0) },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -60,24 +59,12 @@ export function AnalyticsView() {
         <AnalyticsPieChart data={typeData} title="Clip-Typen" />
       </div>
 
-      <div className="p-4 rounded-xl bg-glass border border-white/5 shadow-glass">
-        <h3 className="text-sm font-medium text-surface-800 mb-3">Top Tags</h3>
-        <TagCloud tags={topTags} />
-      </div>
-
-      {/* AI Insights */}
-      <div className="p-4 rounded-xl bg-glass border border-white/5 shadow-glass space-y-2">
-        <h3 className="text-sm font-medium text-surface-800">AI Insights</h3>
-        <div className="space-y-2">
-          <p className="text-sm text-surface-700 p-2 rounded-lg bg-surface-200">
-            Du kopierst deine IBAN sehr oft -- soll ich sie als Quick-Paste
-            anlegen?
-          </p>
-          <p className="text-sm text-surface-700 p-2 rounded-lg bg-surface-200">
-            Montags kopierst du 40% mehr als freitags -- hauptsaechlich Emails
-          </p>
+      {topTags.length > 0 && (
+        <div className="p-4 rounded-xl bg-glass border border-white/5 shadow-glass">
+          <h3 className="text-sm font-medium text-surface-800 mb-3">Top Tags</h3>
+          <TagCloud tags={topTags} />
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,30 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
-import { Ghost, Github, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Ghost, Github, ArrowRight, Loader2 } from "lucide-react";
+import { login } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login fehlgeschlagen");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0f14] noise-overlay p-4 relative overflow-hidden">
@@ -32,7 +51,13 @@ export default function LoginPage() {
           <h2 className="font-display text-xl font-semibold text-white mb-1">Willkommen zurueck</h2>
           <p className="text-sm text-surface-700 mb-7">Melde dich an, um auf deine Clips zuzugreifen.</p>
 
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-sm text-accent-red">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
               <label className="block text-xs text-surface-700 mb-1.5 font-medium uppercase tracking-wider">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -46,9 +71,15 @@ export default function LoginPage() {
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-surface-200/80 border border-white/[0.06] text-sm text-white placeholder:text-surface-600 focus:outline-none focus:ring-2 focus:ring-ghost-500/40 focus:border-ghost-500/30 transition-all" placeholder="••••••••" />
             </div>
-            <button type="submit" className="group w-full py-3 rounded-xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center justify-center gap-2">
-              Anmelden
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <button type="submit" disabled={loading} className="group w-full py-3 rounded-xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  Anmelden
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </button>
           </form>
 

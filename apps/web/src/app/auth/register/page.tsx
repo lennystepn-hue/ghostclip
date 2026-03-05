@@ -1,12 +1,39 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
-import { Ghost, Shield, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Ghost, Shield, ArrowRight, Loader2 } from "lucide-react";
+import { register } from "@/lib/api";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (password !== confirmPassword) {
+      setError("Passwoerter stimmen nicht ueberein");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Passwort muss mindestens 8 Zeichen lang sein");
+      return;
+    }
+    setLoading(true);
+    try {
+      await register(email, password);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registrierung fehlgeschlagen");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0f14] noise-overlay p-4 relative overflow-hidden">
@@ -33,7 +60,13 @@ export default function RegisterPage() {
           <h2 className="font-display text-xl font-semibold text-white mb-1">Account erstellen</h2>
           <p className="text-sm text-surface-700 mb-7">Starte kostenlos mit 1.000 Clips und AI-Klassifizierung.</p>
 
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-accent-red/10 border border-accent-red/20 text-sm text-accent-red">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
               <label className="block text-xs text-surface-700 mb-1.5 font-medium uppercase tracking-wider">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -49,9 +82,15 @@ export default function RegisterPage() {
               <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-surface-200/80 border border-white/[0.06] text-sm text-white placeholder:text-surface-600 focus:outline-none focus:ring-2 focus:ring-ghost-500/40 focus:border-ghost-500/30 transition-all" placeholder="Nochmal eingeben" />
             </div>
-            <button type="submit" className="group w-full py-3 rounded-xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center justify-center gap-2">
-              Account erstellen
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            <button type="submit" disabled={loading} className="group w-full py-3 rounded-xl bg-ghost-600 text-white font-semibold hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  Account erstellen
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </button>
           </form>
 

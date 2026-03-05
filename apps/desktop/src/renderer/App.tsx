@@ -4,6 +4,10 @@ import { ClipFeed } from "./views/ClipFeed";
 import { SettingsView } from "./views/SettingsView";
 import { DevicesView } from "./views/DevicesView";
 import { AnalyticsView } from "./views/AnalyticsView";
+import { TagsView } from "./views/TagsView";
+import { CollectionsView } from "./views/CollectionsView";
+import { SmartView } from "./views/SmartView";
+import { ChatView } from "./views/ChatView";
 
 const viewTitles: Record<string, string> = {
   feed: "Alle Clips",
@@ -11,6 +15,7 @@ const viewTitles: Record<string, string> = {
   tags: "Tags",
   collections: "Sammlungen",
   smart: "Smart Clips",
+  chat: "AI Chat",
   today: "Heute",
   week: "Diese Woche",
   archive: "Archiv",
@@ -41,6 +46,14 @@ export function App() {
         return <ClipFeed filter="today" />;
       case "week":
         return <ClipFeed filter="week" />;
+      case "tags":
+        return <TagsView />;
+      case "collections":
+        return <CollectionsView />;
+      case "smart":
+        return <SmartView />;
+      case "chat":
+        return <ChatView />;
       case "archive":
         return <ClipFeed filter="archive" />;
       case "analytics":

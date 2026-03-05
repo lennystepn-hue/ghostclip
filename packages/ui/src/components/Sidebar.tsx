@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { cn } from "../utils";
-import { Clipboard, Pin, Tag, FolderOpen, Sparkles, Clock, Calendar, Archive, Settings, User, BarChart3, Monitor } from "lucide-react";
+import { Clipboard, Pin, Tag, FolderOpen, Sparkles, MessageCircle, Clock, Calendar, Archive, Settings, User, BarChart3, Monitor } from "lucide-react";
 
 interface SidebarItem {
   id: string;
@@ -23,6 +23,7 @@ const mainItems: SidebarItem[] = [
   { id: "tags", label: "Tags", icon: <Tag className="w-4 h-4" /> },
   { id: "collections", label: "Sammlungen", icon: <FolderOpen className="w-4 h-4" /> },
   { id: "smart", label: "Smart", icon: <Sparkles className="w-4 h-4" /> },
+  { id: "chat", label: "Chat", icon: <MessageCircle className="w-4 h-4" /> },
   { id: "today", label: "Heute", icon: <Clock className="w-4 h-4" /> },
   { id: "week", label: "Woche", icon: <Calendar className="w-4 h-4" /> },
   { id: "archive", label: "Archiv", icon: <Archive className="w-4 h-4" /> },

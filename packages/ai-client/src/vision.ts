@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { AiEnrichmentResult } from "@ghostclip/shared";
 
 const VISION_PROMPT = `Du bist GhostClip Vision. Analysiere dieses Bild und liefere:
@@ -21,8 +20,9 @@ Antworte NUR mit validem JSON:
 
 interface VisionOptions {
   imageBase64: string;
-  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-  apiKey: string;
+  mediaType?: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  apiKey?: string;
+  oauthToken?: string;
 }
 
 interface VisionResult extends AiEnrichmentResult {
@@ -33,31 +33,52 @@ interface VisionResult extends AiEnrichmentResult {
 export async function analyzeImage(
   options: VisionOptions,
 ): Promise<VisionResult> {
-  const client = new Anthropic({ apiKey: options.apiKey });
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "anthropic-version": "2023-06-01",
+  };
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1000,
-    system: VISION_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: options.mediaType,
-              data: options.imageBase64,
+  if (options.oauthToken) {
+    headers["Authorization"] = `Bearer ${options.oauthToken}`;
+    headers["anthropic-beta"] = "oauth-2025-04-20";
+  } else if (options.apiKey) {
+    headers["x-api-key"] = options.apiKey;
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: VISION_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: options.mediaType || "image/png",
+                data: options.imageBase64,
+              },
             },
-          },
-        ],
-      },
-    ],
+          ],
+        },
+      ],
+    }),
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "{}";
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status} ${err}`);
+  }
+
+  const data = await res.json();
+  let text = data.content?.[0]?.type === "text" ? data.content[0].text : "{}";
+  // Strip markdown code fences if present
+  text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   const parsed = JSON.parse(text);
 
   return {

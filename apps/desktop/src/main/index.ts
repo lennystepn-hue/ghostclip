@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, nativeImage } from "electron";
+import { app, BrowserWindow, shell, ipcMain, nativeImage, clipboard } from "electron";
 import { join } from "path";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { ClipboardWatcher } from "./clipboard-watcher";
@@ -7,6 +7,7 @@ import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
 import { notifyClipCaptured } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import {
   initDb,
   insertClip,
@@ -14,6 +15,19 @@ import {
   getAllClips,
   deleteClipById,
   searchClips as dbSearchClips,
+  getSetting,
+  setSetting,
+  getAllSettings,
+  getCollections,
+  createCollection,
+  addClipToCollection,
+  removeClipFromCollection,
+  deleteCollection,
+  getClipStats,
+  cleanExpiredClips,
+  getAllTags,
+  getClipsByTag,
+  clearAllClips,
 } from "./db";
 
 // Allow running as root (dev/container environments)
@@ -108,6 +122,26 @@ app.whenReady().then(() => {
     console.log("Claude OAuth token loaded (Max plan)");
   }
 
+  // Screen context: detect active window
+  let lastActiveApp = "";
+  function getActiveWindow(): string {
+    try {
+      if (process.platform === "linux") {
+        const name = execSync("xdotool getactivewindow getwindowname 2>/dev/null", { encoding: "utf-8", timeout: 1000 }).trim();
+        return name;
+      }
+      return "";
+    } catch { return ""; }
+  }
+
+  setInterval(() => {
+    const appName = getActiveWindow();
+    if (appName !== lastActiveApp) {
+      lastActiveApp = appName;
+      mainWindow?.webContents.send("context:activeApp", appName);
+    }
+  }, 5000);
+
   // Clipboard watcher
   const clipboardWatcher = new ClipboardWatcher();
   clipboardWatcher.start(async (entry) => {
@@ -122,7 +156,7 @@ app.whenReady().then(() => {
       mood: null as string | null,
       actions: [] as any[],
       sensitivity: null as string | null,
-      sourceApp: entry.sourceApp,
+      sourceApp: entry.sourceApp || lastActiveApp,
       pinned: false,
       archived: false,
       createdAt: new Date().toISOString(),
@@ -212,6 +246,91 @@ app.whenReady().then(() => {
     else mainWindow?.maximize();
   });
   ipcMain.on("window:close", () => mainWindow?.hide());
+
+  // IPC: Reply suggestions
+  ipcMain.handle("ai:replies", async (_e, message: string, context?: string) => {
+    const token = getOAuthToken();
+    if (!token) return [];
+    try {
+      const { generateReplies } = await import("@ghostclip/ai-client");
+      const replies = await generateReplies({ message, context, oauthToken: token });
+      return replies;
+    } catch (err: any) {
+      console.error("Reply generation failed:", err.message);
+      return [];
+    }
+  });
+
+  // IPC: AI Chat
+  ipcMain.handle("ai:chat", async (_e, message: string) => {
+    const token = getOAuthToken();
+    if (!token) return "OAuth Token abgelaufen. Bitte Claude CLI neu authentifizieren.";
+    try {
+      const { chat } = await import("@ghostclip/ai-client");
+      const recentClips = getAllClips(50);
+      const clipContext = recentClips.map(c =>
+        `[${c.type}] ${c.summary || c.content?.slice(0, 100)} (Tags: ${c.tags?.join(", ") || "none"}) - ${c.createdAt}`
+      ).join("\n");
+      const response = await chat({ message, oauthToken: token, clipContext });
+      return response;
+    } catch (err: any) {
+      console.error("AI Chat failed:", err.message);
+      return "Fehler: " + err.message;
+    }
+  });
+
+  // IPC: Vision/OCR
+  ipcMain.handle("ai:vision", async (_e, base64Image: string) => {
+    const token = getOAuthToken();
+    if (!token) return null;
+    try {
+      const { analyzeImage } = await import("@ghostclip/ai-client");
+      return await analyzeImage({ imageBase64: base64Image, oauthToken: token });
+    } catch (err: any) {
+      console.error("Vision failed:", err.message);
+      return null;
+    }
+  });
+
+  // IPC: Analytics
+  ipcMain.handle("analytics:stats", () => getClipStats());
+
+  // IPC: Tags
+  ipcMain.handle("tags:list", () => getAllTags());
+  ipcMain.handle("tags:clips", (_e, tag: string) => getClipsByTag(tag));
+
+  // IPC: Collections
+  ipcMain.handle("collections:list", () => getCollections());
+  ipcMain.handle("collections:create", (_e, name: string, icon: string) => {
+    const id = crypto.randomUUID();
+    createCollection(id, name, icon);
+    return { id, name, icon, clipIds: [], createdAt: new Date().toISOString() };
+  });
+  ipcMain.handle("collections:delete", (_e, id: string) => { deleteCollection(id); return true; });
+  ipcMain.handle("collections:addClip", (_e, collectionId: string, clipId: string) => { addClipToCollection(collectionId, clipId); return true; });
+  ipcMain.handle("collections:removeClip", (_e, collectionId: string, clipId: string) => { removeClipFromCollection(collectionId, clipId); return true; });
+
+  // IPC: Settings
+  ipcMain.handle("settings:get", () => getAllSettings());
+  ipcMain.handle("settings:update", (_e, key: string, value: string) => { setSetting(key, value); return true; });
+
+  // IPC: Clipboard write (paste from history)
+  ipcMain.handle("clipboard:write", (_e, text: string) => {
+    clipboard.writeText(text);
+    return true;
+  });
+
+  // IPC: Clear all clips (panic button)
+  ipcMain.handle("clips:clearAll", () => { clearAllClips(); return true; });
+
+  // Auto-expire sensitive clips every 60 seconds
+  setInterval(() => {
+    const deleted = cleanExpiredClips();
+    if (deleted > 0) {
+      console.log(`Auto-expired ${deleted} sensitive clips`);
+      mainWindow?.webContents.send("clips:expired", deleted);
+    }
+  }, 60_000);
 
   app.on("activate", () => {
     if (mainWindow) {

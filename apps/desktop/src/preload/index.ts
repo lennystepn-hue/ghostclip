@@ -12,8 +12,10 @@ const api = {
   pinClip: (id: string) => ipcRenderer.invoke("clips:pin", id),
   archiveClip: (id: string) => ipcRenderer.invoke("clips:archive", id),
   searchClips: (query: string) => ipcRenderer.invoke("clips:search", query),
+  writeClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
+  clearAllClips: () => ipcRenderer.invoke("clips:clearAll"),
 
-  // Clip events (from clipboard watcher + AI enrichment)
+  // Clip events
   onClipNew: (callback: (clip: any) => void) => {
     ipcRenderer.on("clip:new", (_event, clip) => callback(clip));
     return () => ipcRenderer.removeAllListeners("clip:new");
@@ -22,28 +24,39 @@ const api = {
     ipcRenderer.on("clip:updated", (_event, clip) => callback(clip));
     return () => ipcRenderer.removeAllListeners("clip:updated");
   },
-
-  // Legacy clipboard change (kept for compatibility)
-  onClipboardChange: (callback: (data: any) => void) => {
-    ipcRenderer.on("clipboard:change", (_event, data) => callback(data));
-    return () => ipcRenderer.removeAllListeners("clipboard:change");
+  onClipsExpired: (callback: (count: number) => void) => {
+    ipcRenderer.on("clips:expired", (_event, count) => callback(count));
+    return () => ipcRenderer.removeAllListeners("clips:expired");
   },
 
-  // Auth
-  login: (email: string, password: string) =>
-    ipcRenderer.invoke("auth:login", email, password),
-  register: (email: string, password: string) =>
-    ipcRenderer.invoke("auth:register", email, password),
-  logout: () => ipcRenderer.invoke("auth:logout"),
-  getUser: () => ipcRenderer.invoke("auth:user"),
+  // AI
+  getReplies: (message: string, context?: string) => ipcRenderer.invoke("ai:replies", message, context),
+  aiChat: (message: string) => ipcRenderer.invoke("ai:chat", message),
+  aiVision: (base64Image: string) => ipcRenderer.invoke("ai:vision", base64Image),
+
+  // Analytics
+  getStats: () => ipcRenderer.invoke("analytics:stats"),
+
+  // Tags
+  getTags: () => ipcRenderer.invoke("tags:list"),
+  getClipsByTag: (tag: string) => ipcRenderer.invoke("tags:clips", tag),
+
+  // Collections
+  getCollections: () => ipcRenderer.invoke("collections:list"),
+  createCollection: (name: string, icon: string) => ipcRenderer.invoke("collections:create", name, icon),
+  deleteCollection: (id: string) => ipcRenderer.invoke("collections:delete", id),
+  addClipToCollection: (collectionId: string, clipId: string) => ipcRenderer.invoke("collections:addClip", collectionId, clipId),
+  removeClipFromCollection: (collectionId: string, clipId: string) => ipcRenderer.invoke("collections:removeClip", collectionId, clipId),
 
   // Settings
   getSettings: () => ipcRenderer.invoke("settings:get"),
-  updateSettings: (settings: any) =>
-    ipcRenderer.invoke("settings:update", settings),
+  updateSetting: (key: string, value: string) => ipcRenderer.invoke("settings:update", key, value),
 
   // Screen context
-  toggleScreenContext: () => ipcRenderer.invoke("screen-context:toggle"),
+  onActiveAppChange: (callback: (app: string) => void) => {
+    ipcRenderer.on("context:activeApp", (_event, app) => callback(app));
+    return () => ipcRenderer.removeAllListeners("context:activeApp");
+  },
 };
 
 contextBridge.exposeInMainWorld("ghostclip", api);
