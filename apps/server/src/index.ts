@@ -31,6 +31,7 @@ app.get("/health", (_req, res) => {
 import { authRouter } from "./modules/auth/router";
 import { clipboardRouter } from "./modules/clipboard/router";
 import { setupSyncHandlers } from "./modules/sync/handler";
+import { aiRouter } from "./modules/ai/router";
 
 // Mount module routers
 app.use("/api/auth", authRouter);
@@ -40,7 +41,7 @@ app.use("/api/clips", clipboardRouter);
 // WebSocket sync handlers
 setupSyncHandlers(io);
 // app.use("/api/templates", templatesRouter);
-// app.use("/api/ai", aiRouter);
+app.use("/api/ai", aiRouter);
 
 const PORT = process.env.PORT || 4000;
 
