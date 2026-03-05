@@ -197,6 +197,19 @@ Download the latest release for your platform from **[GitHub Releases](https://g
 >
 > **Self-hosted (Community):** Download the app or [build from source](#-self-hosting). Bring your own API key.
 
+<details>
+<summary><strong>macOS: "App is damaged" fix</strong></summary>
+
+macOS blocks unsigned apps by default. After downloading, run:
+
+```bash
+xattr -cr /Applications/GhostClip.app
+```
+
+Or right-click the app → Open → Open anyway.
+
+</details>
+
 <br/>
 
 ---
