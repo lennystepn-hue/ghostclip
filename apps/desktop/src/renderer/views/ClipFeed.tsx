@@ -213,18 +213,22 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
                 )}
 
                 {/* URL preview */}
-                {clip.type === "url" && clip.content && (
-                  <div style={{
-                    fontSize: "11px", color: "#5c7cfa", marginTop: "4px",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    cursor: "pointer", opacity: 0.7,
-                  }}
-                    onClick={() => (window as any).ghostclip?.openUrl?.(clip.content)}
-                    title={clip.content}
-                  >
-                    {clip.content.length > 80 ? clip.content.slice(0, 80) + "..." : clip.content}
-                  </div>
-                )}
+                {clip.type === "url" && clip.content && (() => {
+                  const urlMatch = clip.content.match(/https?:\/\/\S+/);
+                  const url = urlMatch ? urlMatch[0] : clip.content;
+                  return (
+                    <div style={{
+                      fontSize: "11px", color: "#5c7cfa", marginTop: "4px",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      cursor: "pointer", opacity: 0.7,
+                    }}
+                      onClick={() => (window as any).ghostclip?.openUrl?.(url)}
+                      title={url}
+                    >
+                      {url.length > 80 ? url.slice(0, 80) + "..." : url}
+                    </div>
+                  );
+                })()}
 
                 {/* Tags */}
                 {clip.tags && clip.tags.length > 0 && (
@@ -269,7 +273,7 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
                 </span>
                 <div style={{ display: "flex", gap: "4px" }}>
                   {clip.type === "url" && (
-                    <button onClick={() => (window as any).ghostclip?.openUrl?.(clip.content)} title="Im Browser oeffnen" style={{ ...actionBtn, color: "#22c55e" }}>
+                    <button onClick={() => { const u = clip.content.match(/https?:\/\/\S+/)?.[0]; if (u) (window as any).ghostclip?.openUrl?.(u); }} title="Im Browser oeffnen" style={{ ...actionBtn, color: "#22c55e" }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     </button>
                   )}

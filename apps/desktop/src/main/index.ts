@@ -230,11 +230,17 @@ app.whenReady().then(() => {
     let urlMeta: { title: string; description: string; text: string } | null = null;
     if (entry.type === "url") {
       urlMeta = await fetchUrlContent(entry.content.trim());
-      if (urlMeta?.title) {
-        clip.summary = urlMeta.title;
+      if (urlMeta) {
+        clip.summary = urlMeta.title || clip.summary;
+        // Store URL + page content for search & AI context
+        const parts = [`URL: ${entry.content.trim()}`];
+        if (urlMeta.title) parts.push(`Titel: ${urlMeta.title}`);
+        if (urlMeta.description) parts.push(`Beschreibung: ${urlMeta.description}`);
+        if (urlMeta.text) parts.push(`Seiteninhalt:\n${urlMeta.text.slice(0, 3000)}`);
+        clip.content = parts.join("\n\n");
         updateClip(clip);
         mainWindow?.webContents.send("clip:updated", clip);
-        console.log(`URL fetched: "${urlMeta.title}"`);
+        console.log(`URL fetched: "${urlMeta.title}" (${urlMeta.text.length} chars)`);
       }
     }
 

@@ -63,7 +63,11 @@ export function useClips() {
 
   const copyClip = useCallback((id: string) => {
     const clip = clips.find((c) => c.id === id);
-    if (clip?.content) {
+    if (clip?.type === "url" && clip?.content) {
+      // For URLs: copy just the URL, not the page content
+      const url = clip.content.match(/https?:\/\/\S+/)?.[0] || clip.content;
+      navigator.clipboard.writeText(url);
+    } else if (clip?.content) {
       navigator.clipboard.writeText(clip.content);
     } else if (clip?.summary) {
       navigator.clipboard.writeText(clip.summary);
