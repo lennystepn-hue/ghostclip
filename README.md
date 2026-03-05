@@ -184,22 +184,18 @@ Create an account directly in the app to enable cross-device sync. All AI featur
 
 ## Download
 
-### GhostClip Cloud (Pro / Team)
+Download the latest release for your platform from **[GitHub Releases](https://github.com/lennystepn-hue/ghostclip/releases)**.
 
-Download the app and create an account — AI and sync work instantly.
+| Platform | File |
+|:---------|:-----|
+| **Linux** (AppImage) | `GhostClip-0.1.0-x86_64.AppImage` |
+| **Linux** (Debian/Ubuntu) | `GhostClip-0.1.0-amd64.deb` |
+| **macOS** | `GhostClip-0.1.0-x64.dmg` |
+| **Windows** | `GhostClip-0.1.0-x64.exe` |
 
-| Platform | Download |
-|:---------|:---------|
-| **Linux** (AppImage) | [GhostClip-0.1.0-x86_64.AppImage](https://ghostclip.app/download/linux) |
-| **Linux** (Debian/Ubuntu) | [GhostClip-0.1.0-amd64.deb](https://ghostclip.app/download/deb) |
-| **macOS** | [GhostClip-0.1.0-x64.dmg](https://ghostclip.app/download/mac) |
-| **Windows** | [GhostClip-0.1.0-x64.exe](https://ghostclip.app/download/windows) |
-
-### GhostClip Community (Self-Hosted)
-
-Build from source — see [Self-Hosting](#-self-hosting) below.
-
-Releases are also available on [GitHub Releases](https://github.com/lennystepn-hue/ghostclip/releases).
+> **Cloud users (Pro / Team):** Download the app, create an account, done — AI and sync work instantly.
+>
+> **Self-hosted (Community):** Download the app or [build from source](#-self-hosting). Bring your own API key.
 
 <br/>
 
