@@ -199,10 +199,17 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { platform: "Linux", icon: MonitorDot, formats: ["AppImage", "deb"], desc: "Ubuntu, Debian, Fedora, Arch — alle gaengigen Distros.", primary: "AppImage", highlight: true },
-              { platform: "macOS", icon: Apple, formats: ["dmg"], desc: "Intel & Apple Silicon. macOS 12+ empfohlen.", primary: "dmg" },
-              { platform: "Windows", icon: Monitor, formats: ["exe"], desc: "Windows 10/11. Installer mit Auto-Update.", primary: "exe" },
-            ].map(({ platform, icon: Icon, formats, desc, primary, highlight }) => (
+              { platform: "Linux", icon: MonitorDot, downloads: [
+                { label: ".AppImage herunterladen", file: "GhostClip-0.1.0-x86_64.AppImage", primary: true },
+                { label: ".deb herunterladen", file: "GhostClip-0.1.0-amd64.deb", primary: false },
+              ], desc: "Ubuntu, Debian, Fedora, Arch — alle gaengigen Distros.", highlight: true },
+              { platform: "macOS", icon: Apple, downloads: [
+                { label: ".dmg herunterladen", file: "GhostClip-0.1.0-arm64.dmg", primary: true },
+              ], desc: "Intel & Apple Silicon. macOS 12+ empfohlen." },
+              { platform: "Windows", icon: Monitor, downloads: [
+                { label: ".exe herunterladen", file: "GhostClip-0.1.0-x64.exe", primary: true },
+              ], desc: "Windows 10/11. Installer mit Auto-Update." },
+            ].map(({ platform, icon: Icon, downloads, desc, highlight }) => (
               <div
                 key={platform}
                 className={`rounded-2xl p-7 transition-all duration-300 ${
@@ -222,18 +229,18 @@ export default function LandingPage() {
                 <h3 className="font-display text-lg font-semibold text-white">{platform}</h3>
                 <p className="text-sm text-surface-700 mt-2 mb-6 leading-relaxed">{desc}</p>
                 <div className="space-y-2">
-                  {formats.map(f => (
+                  {downloads.map(d => (
                     <a
-                      key={f}
-                      href={`https://github.com/lennystepn-hue/ghostclip/releases/latest/download/GhostClip.${f}`}
+                      key={d.file}
+                      href={`https://github.com/lennystepn-hue/ghostclip/releases/latest/download/${d.file}`}
                       className={`flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                        f === primary
+                        d.primary
                           ? "bg-ghost-600 text-white hover:bg-ghost-500 shadow-glow hover:shadow-glow-lg"
                           : "glass-card text-surface-900 hover:text-white hover:border-white/15"
                       }`}
                     >
                       <Download className="w-4 h-4" />
-                      .{f} herunterladen
+                      {d.label}
                     </a>
                   ))}
                 </div>

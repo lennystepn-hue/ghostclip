@@ -4,12 +4,12 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 jobs:
-  build-desktop:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -17,30 +17,59 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install
-      - run: cd apps/desktop && pnpm build && pnpm package
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: cd apps/desktop && pnpm build
+      - run: cd apps/desktop && npx electron-builder --linux AppImage deb --publish never
       - uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.os }}
-          path: apps/desktop/dist/*
+          name: linux
+          path: |
+            apps/desktop/release/GhostClip-*.AppImage
+            apps/desktop/release/GhostClip-*.deb
 
-  deploy-server:
-    runs-on: ubuntu-latest
-    needs: build-desktop
+  build-mac:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy via Docker
-        run: |
-          echo "Deploy server and web via docker-compose.prod.yml"
-          # ssh deploy@server 'cd /opt/ghostclip && git pull && docker compose -f docker/docker-compose.prod.yml up -d --build'
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install
+      - run: cd apps/desktop && pnpm build
+      - run: cd apps/desktop && npx electron-builder --mac dmg --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: apps/desktop/release/GhostClip-*.dmg
 
-  create-release:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install
+      - run: cd apps/desktop && pnpm build
+      - run: cd apps/desktop && npx electron-builder --win nsis --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: apps/desktop/release/GhostClip-*.exe
+
+  release:
+    needs: [build-linux, build-mac, build-windows]
     runs-on: ubuntu-latest
-    needs: [build-desktop, deploy-server]
     steps:
       - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: desktop-*/*
+          files: dist/**/*
           generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

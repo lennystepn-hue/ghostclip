@@ -2,6 +2,12 @@
   "name": "@ghostclip/desktop",
   "version": "0.1.0",
   "private": true,
+  "description": "AI-powered Clipboard Manager — smart tagging, vision OCR, encrypted sync",
+  "author": {
+    "name": "Lenny Enderle",
+    "email": "lenny@ghostclip.app"
+  },
+  "homepage": "https://github.com/lennystepn-hue/ghostclip",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -30,10 +36,18 @@
       "out/**/*",
       "resources/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "lennystepn-hue",
+      "repo": "ghostclip"
+    },
+    "artifactName": "GhostClip-${version}-${arch}.${ext}",
     "linux": {
       "target": ["AppImage", "deb"],
       "icon": "resources/icon.png",
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "Lenny Enderle <lenny@ghostclip.app>",
+      "executableName": "ghostclip"
     },
     "mac": {
       "target": ["dmg"],
