@@ -20,6 +20,35 @@
     "electron-updater": "^6.3.0",
     "better-sqlite3": "^11.7.0"
   },
+  "build": {
+    "appId": "com.ghostclip.app",
+    "productName": "GhostClip",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "resources/icon.png",
+      "category": "Utility"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "resources/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.1.0",

@@ -1,66 +1,108 @@
 import { io, Socket } from "socket.io-client";
+import { insertClip, updateClip, deleteClipById } from "./db";
+import { encryptContent, decryptContent, isEncryptionReady } from "./encryption";
 
 let socket: Socket | null = null;
+let offlineQueue: any[] = [];
 
-export function connectSync(
-  serverUrl: string,
-  token: string,
-  handlers: {
-    onClipNew: (data: unknown) => void;
-    onClipUpdate: (data: unknown) => void;
-    onClipDelete: (data: unknown) => void;
-    onError: (error: string) => void;
-  },
-): Socket {
-  if (socket?.connected) {
-    socket.disconnect();
-  }
+export function connectSync(token: string, serverUrl: string = "http://localhost:4000") {
+  if (socket?.connected) return;
 
   socket = io(serverUrl, {
     auth: { token },
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 30000,
+    reconnectionDelay: 5000,
+    reconnectionAttempts: 10,
   });
 
   socket.on("connect", () => {
-    console.log("Sync connected");
+    console.log("Sync connected to server");
+    flushOfflineQueue();
   });
-
-  socket.on("clip:new", handlers.onClipNew);
-  socket.on("clip:update", handlers.onClipUpdate);
-  socket.on("clip:delete", handlers.onClipDelete);
-  socket.on("sync:error", (data: { message: string }) => handlers.onError(data.message));
 
   socket.on("disconnect", (reason) => {
     console.log("Sync disconnected:", reason);
   });
 
-  return socket;
+  // Receive clips from other devices
+  socket.on("clip:new", (data: any) => {
+    console.log("Sync: received new clip from another device");
+    const clip = {
+      ...data,
+      content: isEncryptionReady() && data.encryptedContent
+        ? decryptContent(data.encryptedContent) || data.preview || ""
+        : data.content || data.preview || "",
+    };
+    insertClip(clip);
+  });
+
+  socket.on("clip:update", (data: any) => {
+    console.log("Sync: received clip update");
+    updateClip(data);
+  });
+
+  socket.on("clip:delete", (data: { id: string }) => {
+    console.log("Sync: received clip deletion");
+    deleteClipById(data.id);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error("Sync connection error:", err.message);
+  });
+
+  // Heartbeat every 30 seconds
+  setInterval(() => {
+    if (socket?.connected) {
+      socket.emit("device:heartbeat", { timestamp: Date.now() });
+    }
+  }, 30_000);
 }
 
-export function emitClipNew(data: unknown) {
-  socket?.emit("clip:new", data);
+export function emitClipNew(clip: any) {
+  const payload = {
+    ...clip,
+    encryptedContent: isEncryptionReady() ? encryptContent(clip.content) : null,
+    content: isEncryptionReady() ? undefined : clip.content,
+  };
+
+  if (socket?.connected) {
+    socket.emit("clip:new", payload);
+  } else {
+    offlineQueue.push({ event: "clip:new", data: payload });
+  }
 }
 
-export function emitClipUpdate(data: unknown) {
-  socket?.emit("clip:update", data);
+export function emitClipUpdate(clip: any) {
+  if (socket?.connected) {
+    socket.emit("clip:update", clip);
+  } else {
+    offlineQueue.push({ event: "clip:update", data: clip });
+  }
 }
 
-export function emitClipDelete(clipId: string) {
-  socket?.emit("clip:delete", { clipId });
+export function emitClipDelete(id: string) {
+  if (socket?.connected) {
+    socket.emit("clip:delete", { id });
+  } else {
+    offlineQueue.push({ event: "clip:delete", data: { id } });
+  }
 }
 
-export function flushOfflineQueue(items: unknown[]) {
-  socket?.emit("sync:queue", { items });
-}
+function flushOfflineQueue() {
+  if (!socket?.connected || offlineQueue.length === 0) return;
+  console.log(`Sync: flushing ${offlineQueue.length} offline operations`);
 
-export function sendHeartbeat() {
-  socket?.emit("device:heartbeat");
+  for (const item of offlineQueue) {
+    socket.emit(item.event, item.data);
+  }
+  offlineQueue = [];
 }
 
 export function disconnectSync() {
   socket?.disconnect();
   socket = null;
+}
+
+export function isSyncConnected(): boolean {
+  return socket?.connected ?? false;
 }

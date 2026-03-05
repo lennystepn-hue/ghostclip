@@ -8,6 +8,7 @@ import { TagsView } from "./views/TagsView";
 import { CollectionsView } from "./views/CollectionsView";
 import { SmartView } from "./views/SmartView";
 import { ChatView } from "./views/ChatView";
+import { QuickPanelView } from "./views/QuickPanelView";
 
 const viewTitles: Record<string, string> = {
   feed: "Alle Clips",
@@ -26,15 +27,22 @@ const viewTitles: Record<string, string> = {
 };
 
 export function App() {
+  const isQuickPanel = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("quickpanel") === "true";
+
   const [activeView, setActiveView] = useState("feed");
 
   // Listen for navigation from main process
   useEffect(() => {
+    if (isQuickPanel) return;
     const api = (window as any).ghostclip;
     if (!api) return;
 
     // Would listen for IPC events here in production
-  }, []);
+  }, [isQuickPanel]);
+
+  if (isQuickPanel) {
+    return <QuickPanelView />;
+  }
 
   const renderView = () => {
     switch (activeView) {

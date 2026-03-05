@@ -4,8 +4,11 @@ import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import { ClipboardWatcher } from "./clipboard-watcher";
 import { createTray } from "./tray";
 import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
+import { toggleQuickPanel } from "./quick-panel";
 import { notifyClipCaptured } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
+import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
+import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -28,6 +31,8 @@ import {
   getAllTags,
   getClipsByTag,
   clearAllClips,
+  updateClipEmbedding,
+  getClipsWithEmbeddings,
 } from "./db";
 
 // Allow running as root (dev/container environments)
@@ -55,6 +60,21 @@ function getOAuthToken(): string | null {
     console.log("No Claude CLI credentials found, AI enrichment disabled");
     return null;
   }
+}
+
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "text-embedding-3-small", input: text.slice(0, 8000) }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data?.[0]?.embedding || null;
+  } catch { return null; }
 }
 
 function createWindow() {
@@ -111,6 +131,14 @@ app.whenReady().then(() => {
   initDb();
   console.log("SQLite database initialized");
 
+  // Initialize encryption (if vault key exists)
+  const encryptionReady = initEncryption();
+  if (encryptionReady) {
+    console.log("E2E encryption initialized");
+  } else {
+    console.log("E2E encryption not configured (local-only mode)");
+  }
+
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
@@ -165,6 +193,7 @@ app.whenReady().then(() => {
 
     // Save to SQLite + notify renderer
     insertClip(clip);
+    emitClipNew(clip);
     mainWindow?.webContents.send("clip:new", clip);
     notifyClipCaptured(clip.summary, clip.type);
 
@@ -187,8 +216,16 @@ app.whenReady().then(() => {
 
         // Update in DB + notify renderer
         updateClip(clip);
+        emitClipUpdate(clip);
         mainWindow?.webContents.send("clip:updated", clip);
         console.log(`AI enriched: "${clip.summary}" [${clip.tags.join(", ")}]`);
+
+        // Generate embedding for semantic search
+        const embeddingText = `${clip.summary} ${clip.tags.join(" ")} ${clip.content?.slice(0, 500)}`;
+        const embedding = await generateEmbedding(embeddingText);
+        if (embedding) {
+          updateClipEmbedding(clip.id, embedding);
+        }
       } catch (err: any) {
         console.error("AI enrichment failed:", err.message);
       }
@@ -201,12 +238,37 @@ app.whenReady().then(() => {
   // Global hotkeys
   registerHotkeys(mainWindow);
 
+  // Connect to sync server if configured
+  const syncToken = getSetting("syncToken");
+  const syncServer = getSetting("syncServer", "http://localhost:4000");
+  if (syncToken) {
+    connectSync(syncToken, syncServer);
+  }
+
+  // IPC: Encryption status
+  ipcMain.handle("encryption:status", () => isEncryptionReady());
+
+  // IPC: Encrypt content (for manual encryption)
+  ipcMain.handle("encryption:encrypt", (_e, text: string) => encryptContent(text));
+
+  // IPC: Sync status
+  ipcMain.handle("sync:status", () => isSyncConnected());
+
+  // IPC: Connect sync
+  ipcMain.handle("sync:connect", (_e, token: string, server?: string) => {
+    setSetting("syncToken", token);
+    if (server) setSetting("syncServer", server);
+    connectSync(token, server || "http://localhost:4000");
+    return true;
+  });
+
   // IPC: Get all clips (from SQLite)
   ipcMain.handle("clips:list", () => getAllClips());
 
   // IPC: Delete clip
   ipcMain.handle("clips:delete", (_e, id: string) => {
     deleteClipById(id);
+    emitClipDelete(id);
     return true;
   });
 
@@ -239,6 +301,31 @@ app.whenReady().then(() => {
     return dbSearchClips(query);
   });
 
+  // IPC: Semantic search
+  ipcMain.handle("clips:semanticSearch", async (_e, query: string) => {
+    const queryEmbedding = await generateEmbedding(query);
+    if (!queryEmbedding) return dbSearchClips(query); // fallback to text search
+
+    const clipsWithEmbeddings = getClipsWithEmbeddings();
+    if (clipsWithEmbeddings.length === 0) return dbSearchClips(query);
+
+    // Compute cosine similarity
+    const scored = clipsWithEmbeddings.map(clip => {
+      const dotProduct = clip.embedding.reduce((sum, val, i) => sum + val * queryEmbedding[i], 0);
+      const normA = Math.sqrt(clip.embedding.reduce((sum, val) => sum + val * val, 0));
+      const normB = Math.sqrt(queryEmbedding.reduce((sum, val) => sum + val * val, 0));
+      const similarity = dotProduct / (normA * normB);
+      return { id: clip.id, similarity };
+    });
+
+    const topIds = scored.sort((a, b) => b.similarity - a.similarity).slice(0, 20).filter(s => s.similarity > 0.3).map(s => s.id);
+
+    if (topIds.length === 0) return dbSearchClips(query);
+
+    const allClips = getAllClips();
+    return topIds.map(id => allClips.find(c => c.id === id)).filter(Boolean);
+  });
+
   // Window control IPC handlers
   ipcMain.on("window:minimize", () => mainWindow?.minimize());
   ipcMain.on("window:maximize", () => {
@@ -246,6 +333,7 @@ app.whenReady().then(() => {
     else mainWindow?.maximize();
   });
   ipcMain.on("window:close", () => mainWindow?.hide());
+  ipcMain.on("quickpanel:toggle", () => toggleQuickPanel());
 
   // IPC: Reply suggestions
   ipcMain.handle("ai:replies", async (_e, message: string, context?: string) => {

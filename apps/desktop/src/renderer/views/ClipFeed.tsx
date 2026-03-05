@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useClips } from "../hooks/useClips";
 
 interface ClipFeedProps {
@@ -15,6 +15,21 @@ const typeEmoji: Record<string, string> = {
 export function ClipFeed({ filter = "all" }: ClipFeedProps) {
   const { clips, loading, copyClip, pinClip, archiveClip, deleteClip } = useClips();
   const [search, setSearch] = useState("");
+  const [semanticMode, setSemanticMode] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    if (!semanticMode || !search.trim()) {
+      setSemanticResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const api = (window as any).ghostclip;
+      const results = await api?.semanticSearch?.(search);
+      setSemanticResults(results || []);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search, semanticMode]);
 
   const filteredClips = useMemo(() => {
     let result = clips;
@@ -55,27 +70,45 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
   return (
     <div>
       {/* Search */}
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Clips durchsuchen..."
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: "10px",
-          border: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(34,34,46,0.6)",
-          color: "#c4c4d4",
-          fontSize: "13px",
-          outline: "none",
-          marginBottom: "16px",
-        }}
-      />
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={semanticMode ? "Semantisch suchen..." : "Clips durchsuchen..."}
+          style={{
+            flex: 1,
+            padding: "10px 14px",
+            borderRadius: "10px",
+            border: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(34,34,46,0.6)",
+            color: "#c4c4d4",
+            fontSize: "13px",
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={() => setSemanticMode(!semanticMode)}
+          title={semanticMode ? "Semantische Suche aktiv" : "Semantische Suche aktivieren"}
+          style={{
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: semanticMode ? "1px solid rgba(92,124,250,0.4)" : "1px solid rgba(255,255,255,0.06)",
+            background: semanticMode ? "rgba(66,99,235,0.2)" : "rgba(34,34,46,0.6)",
+            color: semanticMode ? "#91a7ff" : "#5c5c75",
+            fontSize: "11px",
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "'JetBrains Mono', monospace",
+          }}
+        >
+          AI
+        </button>
+      </div>
 
       {/* Clips */}
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {filteredClips.map((clip) => (
+        {(semanticResults !== null ? semanticResults : filteredClips).map((clip) => (
           <div
             key={clip.id}
             style={{
@@ -175,7 +208,7 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
           </div>
         ))}
 
-        {filteredClips.length === 0 && (
+        {(semanticResults !== null ? semanticResults : filteredClips).length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 0", color: "#4a4a60", fontSize: "13px" }}>
             {search ? "Keine Clips gefunden" : "Kopiere etwas — es erscheint hier live!"}
           </div>

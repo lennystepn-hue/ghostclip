@@ -1,11 +1,10 @@
 import { globalShortcut, BrowserWindow } from "electron";
+import { toggleQuickPanel } from "./quick-panel";
 
 export function registerHotkeys(mainWindow: BrowserWindow | null) {
   // Ctrl+Shift+V: Quick Panel
   globalShortcut.register("CmdOrCtrl+Shift+V", () => {
-    mainWindow?.webContents.send("shortcut:quick-panel");
-    mainWindow?.show();
-    mainWindow?.focus();
+    toggleQuickPanel();
   });
 
   // Ctrl+Shift+F: Semantic Search

@@ -41,9 +41,17 @@ export function initDb() {
       pinned INTEGER DEFAULT 0,
       archived INTEGER DEFAULT 0,
       enriched INTEGER DEFAULT 0,
+      embedding TEXT DEFAULT NULL,
       created_at TEXT NOT NULL
     )
   `);
+
+  // Migration: add embedding column if missing (for existing DBs)
+  try {
+    db.exec(`ALTER TABLE clips ADD COLUMN embedding TEXT DEFAULT NULL`);
+  } catch {
+    // Column already exists
+  }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at DESC)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_hash ON clips(content_hash)`);
@@ -254,6 +262,22 @@ export function getAllTags(): { tag: string; count: number }[] {
 export function getClipsByTag(tag: string): any[] {
   const rows = db.prepare("SELECT * FROM clips WHERE tags LIKE ? AND archived = 0 ORDER BY created_at DESC").all(`%"${tag}"%`) as ClipRow[];
   return rows.map(rowToClip);
+}
+
+// Embeddings for semantic search
+export function updateClipEmbedding(id: string, embedding: number[]) {
+  db.prepare("UPDATE clips SET embedding = ? WHERE id = ?").run(JSON.stringify(embedding), id);
+}
+
+export function getClipsWithEmbeddings(): { id: string; embedding: number[]; summary: string; content: string; tags: string }[] {
+  const rows = db.prepare("SELECT id, embedding, summary, content, tags FROM clips WHERE embedding IS NOT NULL AND archived = 0").all() as any[];
+  return rows.map(r => ({
+    id: r.id,
+    embedding: JSON.parse(r.embedding),
+    summary: r.summary || "",
+    content: r.content || "",
+    tags: r.tags || "[]",
+  }));
 }
 
 // Clear all clips (panic button)

@@ -12,6 +12,7 @@ const api = {
   pinClip: (id: string) => ipcRenderer.invoke("clips:pin", id),
   archiveClip: (id: string) => ipcRenderer.invoke("clips:archive", id),
   searchClips: (query: string) => ipcRenderer.invoke("clips:search", query),
+  semanticSearch: (query: string) => ipcRenderer.invoke("clips:semanticSearch", query),
   writeClipboard: (text: string) => ipcRenderer.invoke("clipboard:write", text),
   clearAllClips: () => ipcRenderer.invoke("clips:clearAll"),
 
@@ -57,6 +58,13 @@ const api = {
     ipcRenderer.on("context:activeApp", (_event, app) => callback(app));
     return () => ipcRenderer.removeAllListeners("context:activeApp");
   },
+
+  // Sync
+  syncStatus: () => ipcRenderer.invoke("sync:status"),
+  connectSync: (token: string, server?: string) => ipcRenderer.invoke("sync:connect", token, server),
+
+  // Encryption
+  encryptionStatus: () => ipcRenderer.invoke("encryption:status"),
 };
 
 contextBridge.exposeInMainWorld("ghostclip", api);
