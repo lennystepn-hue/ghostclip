@@ -1,15 +1,45 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFile, exec } from "node:child_process";
+import { execFile, exec, execSync } from "node:child_process";
 
 function getCredsPath(): string {
   const home = process.env.USERPROFILE || process.env.HOME || "/root";
   return join(home, ".claude", ".credentials.json");
 }
 
+function readCredsFromKeychain(): Record<string, any> | null {
+  if (process.platform !== "darwin") return null;
+  try {
+    const account = process.env.USER || process.env.LOGNAME || "default";
+    const raw = execSync(
+      `security find-generic-password -s "Claude Code-credentials" -a "${account}" -w 2>/dev/null`,
+      { encoding: "utf-8", timeout: 5000 },
+    ).trim();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function readCreds(): Record<string, any> | null {
+  // macOS: try Keychain first, then fall back to file
+  if (process.platform === "darwin") {
+    const kc = readCredsFromKeychain();
+    if (kc) return kc;
+  }
+  // Windows / Linux / fallback: read from file
+  try {
+    return JSON.parse(readFileSync(getCredsPath(), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 export function getOAuthToken(): string | null {
   try {
-    const creds = JSON.parse(readFileSync(getCredsPath(), "utf-8"));
+    const creds = readCreds();
+    if (!creds) return null;
     const oauth = creds.claudeAiOauth;
     if (oauth?.accessToken && oauth.expiresAt > Date.now()) {
       return oauth.accessToken;
@@ -23,7 +53,8 @@ export function getOAuthToken(): string | null {
 export function getOAuthStatus(): { hasToken: boolean; expired: boolean; hasCli: boolean } {
   const hasCli = isCliInstalled();
   try {
-    const creds = JSON.parse(readFileSync(getCredsPath(), "utf-8"));
+    const creds = readCreds();
+    if (!creds) return { hasToken: false, expired: false, hasCli };
     const oauth = creds.claudeAiOauth;
     if (!oauth?.accessToken) return { hasToken: false, expired: false, hasCli };
     if (oauth.expiresAt <= Date.now()) return { hasToken: true, expired: true, hasCli };
@@ -79,7 +110,7 @@ function findClaude(): string {
  * Start OAuth flow via Claude CLI.
  * Runs `claude auth login` which opens the browser for Anthropic OAuth.
  * The CLI handles all the PKCE, callback, token exchange.
- * Token gets saved to ~/.claude/.credentials.json which we read.
+ * Token gets saved to macOS Keychain (darwin) or ~/.claude/.credentials.json (Linux/Windows).
  */
 export function startOAuthFlow(): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {

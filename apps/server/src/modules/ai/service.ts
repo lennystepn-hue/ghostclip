@@ -2,14 +2,42 @@ import { enrichClip, generateReplies, chat, analyzeImage } from "@ghostclip/ai-c
 import { generateEmbedding } from "./embedding";
 import { pool } from "../../database/connection";
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+
+function readCredsFromKeychain(): Record<string, any> | null {
+  if (process.platform !== "darwin") return null;
+  try {
+    const account = process.env.USER || process.env.LOGNAME || "default";
+    const raw = execSync(
+      `security find-generic-password -s "Claude Code-credentials" -a "${account}" -w 2>/dev/null`,
+      { encoding: "utf-8", timeout: 5000 },
+    ).trim();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 // Fallback: read local Claude OAuth token (same server machine)
 function getOAuthToken(): string | null {
   if (ANTHROPIC_API_KEY) return null; // prefer API key
   try {
+    // macOS: try Keychain first
+    if (process.platform === "darwin") {
+      const kc = readCredsFromKeychain();
+      if (kc) {
+        const oauth = kc.claudeAiOauth;
+        if (oauth?.accessToken && oauth.expiresAt > Date.now()) {
+          return oauth.accessToken;
+        }
+        return null;
+      }
+    }
+    // Windows / Linux / fallback: read from file
     const credsPath = join(process.env.HOME || "/root", ".claude", ".credentials.json");
     const creds = JSON.parse(readFileSync(credsPath, "utf-8"));
     const oauth = creds.claudeAiOauth;
