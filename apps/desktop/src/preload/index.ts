@@ -85,10 +85,13 @@ const api = {
   authLogin: (email: string, password: string, server?: string) => ipcRenderer.invoke("auth:login", email, password, server),
   authLogout: () => ipcRenderer.invoke("auth:logout"),
 
-  // Claude OAuth
+  // Claude AI (OAuth + API Key)
+  aiStatus: () => ipcRenderer.invoke("ai:status"),
   oauthStatus: () => ipcRenderer.invoke("oauth:status"),
   oauthConnect: () => ipcRenderer.invoke("oauth:connect"),
   oauthRefresh: () => ipcRenderer.invoke("oauth:refresh"),
+  setApiKey: (key: string) => ipcRenderer.invoke("ai:setApiKey", key),
+  removeApiKey: () => ipcRenderer.invoke("ai:removeApiKey"),
 
   // Updates
   updateCheck: () => ipcRenderer.invoke("update:check"),

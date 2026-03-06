@@ -67,6 +67,20 @@ let isQuitting = false;
 
 // OAuth token is now managed by claude-oauth.ts module
 
+// Get API key from settings or environment
+function getApiKey(): string | null {
+  return getSetting("anthropic_api_key") || process.env.ANTHROPIC_API_KEY || null;
+}
+
+// Get the best available AI credentials
+function getAiCredentials(): { oauthToken?: string; apiKey?: string } {
+  const oauth = getOAuthToken();
+  if (oauth) return { oauthToken: oauth };
+  const key = getApiKey();
+  if (key) return { apiKey: key };
+  return {};
+}
+
 // Server-side AI proxy for logged-in users without local OAuth
 async function serverAiRequest(endpoint: string, body: any): Promise<any> {
   const token = getSetting("auth_access_token");
@@ -86,9 +100,10 @@ async function serverAiRequest(endpoint: string, body: any): Promise<any> {
   return res.json();
 }
 
-// Check if AI is available (either local OAuth or server account)
+// Check if AI is available (OAuth, API key, or server account)
 function hasAiAccess(oauthToken: string | null): boolean {
   if (oauthToken) return true;
+  if (getApiKey()) return true;
   const authToken = getSetting("auth_access_token");
   return !!authToken;
 }
@@ -177,8 +192,11 @@ app.whenReady().then(() => {
   createWindow();
 
   const oauthToken = getOAuthToken();
+  const apiKey = getApiKey();
   if (oauthToken) {
     console.log("Claude OAuth token loaded (Max plan)");
+  } else if (apiKey) {
+    console.log("Anthropic API key loaded");
   }
 
   // Screen context: detect active window
@@ -260,11 +278,14 @@ app.whenReady().then(() => {
       try {
         let result: any;
 
+        const creds = getAiCredentials();
+        const hasLocalAi = !!(creds.oauthToken || creds.apiKey);
+
         if (entry.type === "image") {
-          if (oauthToken) {
-            // Local OAuth: direct API call
+          if (hasLocalAi) {
+            // Local AI: direct API call
             const { analyzeImage } = await import("@ghostclip/ai-client");
-            const visionResult = await analyzeImage({ imageBase64: entry.content, oauthToken });
+            const visionResult = await analyzeImage({ imageBase64: entry.content, ...creds });
             result = {
               tags: visionResult.tags,
               summary: visionResult.summary || visionResult.description,
@@ -300,8 +321,8 @@ app.whenReady().then(() => {
             ? `URL: ${entry.content}\nTitel: ${urlMeta.title}\nBeschreibung: ${urlMeta.description}\nSeiteninhalt: ${urlMeta.text.slice(0, 1500)}`
             : entry.content.slice(0, 2000);
 
-          if (oauthToken) {
-            // Local OAuth: direct API call
+          if (hasLocalAi) {
+            // Local AI: direct API call
             const recentSummary = getRecentClipsSummary(5);
             const userProfile = getUserProfile();
             const learningContext = [
@@ -312,7 +333,7 @@ app.whenReady().then(() => {
             result = await enrichClip({
               type: entry.type,
               content: enrichContent,
-              oauthToken,
+              ...creds,
               recentClipsSummary: learningContext || undefined,
             });
           } else {
@@ -350,13 +371,13 @@ app.whenReady().then(() => {
         if (isMessage) {
           try {
             let replies: any[];
-            if (oauthToken) {
+            if (hasLocalAi) {
               const { generateReplies } = await import("@ghostclip/ai-client");
               const userStyle = getUsedReplyStyles();
               const recentContext = getRecentClipsSummary(3);
               replies = await generateReplies({
                 message: clip.content.slice(0, 1000),
-                oauthToken,
+                ...creds,
                 context: recentContext || undefined,
                 userStyle: userStyle ? `Typische Antworten des Users (lerne seinen Stil):\n${userStyle.slice(0, 800)}` : undefined,
               });
@@ -440,13 +461,31 @@ app.whenReady().then(() => {
     return true;
   });
 
-  // IPC: Claude OAuth
+  // IPC: Claude AI (OAuth + API Key)
+  ipcMain.handle("ai:status", () => {
+    const oauth = getOAuthStatus();
+    const key = getApiKey();
+    return {
+      oauth,
+      hasApiKey: !!key,
+      apiKeyPreview: key ? `${key.slice(0, 10)}...${key.slice(-4)}` : null,
+      active: (oauth.hasToken && !oauth.expired) || !!key,
+    };
+  });
   ipcMain.handle("oauth:status", () => getOAuthStatus());
   ipcMain.handle("oauth:connect", async () => {
     return startOAuthFlow();
   });
   ipcMain.handle("oauth:refresh", async () => {
     return refreshOAuthToken();
+  });
+  ipcMain.handle("ai:setApiKey", (_e, key: string) => {
+    setSetting("anthropic_api_key", key.trim());
+    return true;
+  });
+  ipcMain.handle("ai:removeApiKey", () => {
+    setSetting("anthropic_api_key", "");
+    return true;
   });
 
   // Start OAuth auto-refresh
@@ -588,15 +627,14 @@ app.whenReady().then(() => {
   ipcMain.on("window:close", () => mainWindow?.hide());
   ipcMain.on("quickpanel:toggle", () => toggleQuickPanel());
 
-  // IPC: Reply suggestions (local OAuth or server proxy)
+  // IPC: Reply suggestions (local OAuth/API key or server proxy)
   ipcMain.handle("ai:replies", async (_e, message: string, context?: string) => {
-    const token = getOAuthToken();
+    const creds = getAiCredentials();
     try {
-      if (token) {
+      if (creds.oauthToken || creds.apiKey) {
         const { generateReplies } = await import("@ghostclip/ai-client");
-        return await generateReplies({ message, context, oauthToken: token });
+        return await generateReplies({ message, context, ...creds });
       }
-      // Server fallback for registered users
       return await serverAiRequest("replies", { message }) || [];
     } catch (err: any) {
       console.error("Reply generation failed:", err.message);
@@ -606,8 +644,9 @@ app.whenReady().then(() => {
 
   // IPC: AI Chat — full DB access: recent clips + keyword search across entire history
   ipcMain.handle("ai:chat", async (_e, message: string) => {
-    const token = getOAuthToken();
-    if (!token && !getSetting("auth_access_token")) return "Bitte einloggen oder Claude CLI einrichten fuer AI-Features.";
+    const creds = getAiCredentials();
+    const hasLocal = !!(creds.oauthToken || creds.apiKey);
+    if (!hasLocal && !getSetting("auth_access_token")) return "Bitte Claude verbinden oder API Key eingeben fuer AI-Features.";
     try {
       const { chat } = await import("@ghostclip/ai-client");
 
@@ -658,8 +697,8 @@ app.whenReady().then(() => {
       }));
 
       let response: string;
-      if (token) {
-        response = await chat({ message, oauthToken: token, clipContext, conversationHistory });
+      if (hasLocal) {
+        response = await chat({ message, ...creds, clipContext, conversationHistory });
       } else {
         // Server proxy for registered users
         const serverResult = await serverAiRequest("chat", { message, conversationHistory });
@@ -701,15 +740,14 @@ app.whenReady().then(() => {
     }];
   });
 
-  // IPC: Vision/OCR (local OAuth or server proxy)
+  // IPC: Vision/OCR (local OAuth/API key or server proxy)
   ipcMain.handle("ai:vision", async (_e, base64Image: string) => {
-    const token = getOAuthToken();
+    const creds = getAiCredentials();
     try {
-      if (token) {
+      if (creds.oauthToken || creds.apiKey) {
         const { analyzeImage } = await import("@ghostclip/ai-client");
-        return await analyzeImage({ imageBase64: base64Image, oauthToken: token });
+        return await analyzeImage({ imageBase64: base64Image, ...creds });
       }
-      // Server fallback
       return await serverAiRequest("vision", { imageBase64: base64Image, mediaType: "image/png" });
     } catch (err: any) {
       console.error("Vision failed:", err.message);
