@@ -85,6 +85,11 @@ const api = {
   authLogin: (email: string, password: string, server?: string) => ipcRenderer.invoke("auth:login", email, password, server),
   authLogout: () => ipcRenderer.invoke("auth:logout"),
 
+  // Claude OAuth
+  oauthStatus: () => ipcRenderer.invoke("oauth:status"),
+  oauthConnect: () => ipcRenderer.invoke("oauth:connect"),
+  oauthRefresh: () => ipcRenderer.invoke("oauth:refresh"),
+
   // Sync
   syncStatus: () => ipcRenderer.invoke("sync:status"),
   connectSync: (token: string, server?: string) => ipcRenderer.invoke("sync:connect", token, server),

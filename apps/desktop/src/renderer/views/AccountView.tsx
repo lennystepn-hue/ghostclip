@@ -6,11 +6,17 @@ interface AuthState {
   device: { id: string; name: string; platform: string } | null;
 }
 
+interface OAuthStatus {
+  hasToken: boolean;
+  expired: boolean;
+}
+
 export function AccountView() {
   const [authState, setAuthState] = useState<AuthState>({ loggedIn: false, user: null, device: null });
   const [loading, setLoading] = useState(true);
   const [clipCount, setClipCount] = useState(0);
   const [syncConnected, setSyncConnected] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatus>({ hasToken: false, expired: false });
   const api = (window as any).ghostclip;
 
   useEffect(() => {
@@ -20,14 +26,16 @@ export function AccountView() {
   async function loadState() {
     setLoading(true);
     try {
-      const [state, clips, sync] = await Promise.all([
+      const [state, clips, sync, oauth] = await Promise.all([
         api?.authState?.(),
         api?.getClips?.(),
         api?.syncStatus?.(),
+        api?.oauthStatus?.(),
       ]);
       setAuthState(state || { loggedIn: false, user: null, device: null });
       setClipCount(clips?.length || 0);
       setSyncConnected(sync || false);
+      setOauthStatus(oauth || { hasToken: false, expired: false });
     } catch {} finally {
       setLoading(false);
     }
@@ -44,15 +52,15 @@ export function AccountView() {
   }
 
   if (!authState.loggedIn) {
-    return <AuthForm onSuccess={loadState} />;
+    return <AuthForm onSuccess={loadState} oauthStatus={oauthStatus} onOAuthRefresh={loadState} />;
   }
 
-  return <AccountInfo authState={authState} clipCount={clipCount} syncConnected={syncConnected} onLogout={handleLogout} />;
+  return <AccountInfo authState={authState} clipCount={clipCount} syncConnected={syncConnected} oauthStatus={oauthStatus} onLogout={handleLogout} onOAuthRefresh={loadState} />;
 }
 
 // --- Auth Form (Login / Register) ---
 
-function AuthForm({ onSuccess }: { onSuccess: () => void }) {
+function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () => void; oauthStatus: OAuthStatus; onOAuthRefresh: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +69,27 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
   const [showServer, setShowServer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [oauthMsg, setOauthMsg] = useState<string | null>(null);
   const api = (window as any).ghostclip;
+
+  async function handleOAuth() {
+    setOauthBusy(true);
+    setOauthMsg(null);
+    try {
+      const result = await api?.oauthConnect?.();
+      if (result?.success) {
+        setOauthMsg("Verbunden! AI ist jetzt aktiv.");
+        onOAuthRefresh();
+      } else {
+        setOauthMsg(result?.error || "Verbindung fehlgeschlagen");
+      }
+    } catch (err: any) {
+      setOauthMsg(err?.message || "Fehler");
+    } finally {
+      setOauthBusy(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -226,9 +254,62 @@ function AuthForm({ onSuccess }: { onSuccess: () => void }) {
         </button>
       </div>
 
+      {/* Claude AI OAuth */}
+      <div style={{
+        textAlign: "center", marginTop: "24px", padding: "18px",
+        borderRadius: "12px",
+        background: oauthStatus.hasToken && !oauthStatus.expired
+          ? "rgba(34,197,94,0.06)"
+          : "rgba(66,99,235,0.06)",
+        border: `1px solid ${oauthStatus.hasToken && !oauthStatus.expired
+          ? "rgba(34,197,94,0.15)"
+          : "rgba(66,99,235,0.15)"}`,
+      }}>
+        <p style={{ fontSize: "13px", fontWeight: 600, color: "#e0e0e8", marginBottom: "6px" }}>
+          Claude AI (lokal)
+        </p>
+        <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px" }}>
+          {oauthStatus.hasToken && !oauthStatus.expired
+            ? "AI ist aktiv — Tags, Summaries und Chat funktionieren."
+            : oauthStatus.expired
+              ? "OAuth Token abgelaufen — klicke um neu zu verbinden."
+              : "Verbinde mit deinem Claude Account fuer AI-Features ohne Server."}
+        </p>
+        {oauthMsg && (
+          <p style={{
+            fontSize: "11px", marginBottom: "8px",
+            color: oauthMsg.includes("aktiv") || oauthMsg.includes("Verbunden") ? "#22c55e" : "#ef4444",
+          }}>
+            {oauthMsg}
+          </p>
+        )}
+        <button
+          onClick={handleOAuth}
+          disabled={oauthBusy || (oauthStatus.hasToken && !oauthStatus.expired)}
+          style={{
+            padding: "8px 20px", borderRadius: "8px", border: "none",
+            background: oauthStatus.hasToken && !oauthStatus.expired
+              ? "#2a2a3e"
+              : oauthBusy ? "#3a3a52" : "#4263eb",
+            color: oauthStatus.hasToken && !oauthStatus.expired ? "#5c5c75" : "white",
+            fontSize: "12px", fontWeight: 600,
+            cursor: oauthBusy || (oauthStatus.hasToken && !oauthStatus.expired) ? "not-allowed" : "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          {oauthBusy
+            ? "Browser oeffnet..."
+            : oauthStatus.hasToken && !oauthStatus.expired
+              ? "Verbunden"
+              : oauthStatus.expired
+                ? "Neu verbinden"
+                : "Mit Claude verbinden"}
+        </button>
+      </div>
+
       {/* Local mode hint */}
       <div style={{
-        textAlign: "center", marginTop: "24px", padding: "14px",
+        textAlign: "center", marginTop: "12px", padding: "14px",
         borderRadius: "10px", background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.05)",
       }}>
@@ -248,12 +329,16 @@ function AccountInfo({
   authState,
   clipCount,
   syncConnected,
+  oauthStatus,
   onLogout,
+  onOAuthRefresh,
 }: {
   authState: AuthState;
   clipCount: number;
   syncConnected: boolean;
+  oauthStatus: OAuthStatus;
   onLogout: () => void;
+  onOAuthRefresh: () => void;
 }) {
   const hostname = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const platform = hostname.includes("Linux") ? "Linux" : hostname.includes("Mac") ? "macOS" : "Windows";
@@ -328,11 +413,15 @@ function AccountInfo({
 
       {/* AI */}
       <h3 style={sectionTitle}>AI Integration</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "24px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
         <InfoRow label="Enrichment" value="Claude Haiku 4.5" />
         <InfoRow label="Chat & Replies" value="Claude Sonnet 4.6" />
-        <InfoRow label="Auth" value="Claude OAuth (Max Plan)" />
+        <InfoRow
+          label="Claude OAuth"
+          value={oauthStatus.hasToken && !oauthStatus.expired ? "Verbunden" : oauthStatus.expired ? "Abgelaufen" : "Nicht verbunden"}
+        />
       </div>
+      <OAuthButton oauthStatus={oauthStatus} onRefresh={onOAuthRefresh} />
 
       {/* Logout */}
       <button
@@ -409,6 +498,64 @@ function StatCard({ label, value, color }: { label: string; value: string; color
     }}>
       <p style={{ fontSize: "20px", fontWeight: 700, color: color || "#e0e0e8" }}>{value}</p>
       <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>{label}</p>
+    </div>
+  );
+}
+
+function OAuthButton({ oauthStatus, onRefresh }: { oauthStatus: OAuthStatus; onRefresh: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const api = (window as any).ghostclip;
+  const connected = oauthStatus.hasToken && !oauthStatus.expired;
+
+  async function handleClick() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const result = await api?.oauthConnect?.();
+      if (result?.success) {
+        setMsg("Verbunden!");
+        onRefresh();
+      } else {
+        setMsg(result?.error || "Fehlgeschlagen");
+      }
+    } catch (err: any) {
+      setMsg(err?.message || "Fehler");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: "24px" }}>
+      {msg && (
+        <p style={{
+          fontSize: "11px", marginBottom: "8px", textAlign: "center",
+          color: msg === "Verbunden!" ? "#22c55e" : "#ef4444",
+        }}>
+          {msg}
+        </p>
+      )}
+      <button
+        onClick={handleClick}
+        disabled={busy || connected}
+        style={{
+          padding: "10px 20px", borderRadius: "10px", border: "none",
+          background: connected ? "rgba(34,197,94,0.1)" : busy ? "#3a3a52" : "#4263eb",
+          color: connected ? "#22c55e" : "white",
+          fontSize: "12px", fontWeight: 600, width: "100%",
+          cursor: busy || connected ? "not-allowed" : "pointer",
+          transition: "all 0.2s",
+        }}
+      >
+        {busy
+          ? "Browser oeffnet..."
+          : connected
+            ? "Claude AI verbunden"
+            : oauthStatus.expired
+              ? "Claude AI neu verbinden"
+              : "Mit Claude AI verbinden"}
+      </button>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
+import { getOAuthToken, getOAuthStatus, startOAuthFlow, refreshOAuthToken, startAutoRefresh } from "./claude-oauth";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -63,25 +64,7 @@ process.on("uncaughtException", (err) => {
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
 
-// Load OAuth token from Claude CLI credentials
-function getOAuthToken(): string | null {
-  try {
-    const credsPath = join(
-      process.env.HOME || "/root",
-      ".claude",
-      ".credentials.json",
-    );
-    const creds = JSON.parse(readFileSync(credsPath, "utf-8"));
-    const oauth = creds.claudeAiOauth;
-    if (oauth?.accessToken && oauth.expiresAt > Date.now()) {
-      return oauth.accessToken;
-    }
-    console.log("OAuth token expired or missing");
-    return null;
-  } catch {
-    return null;
-  }
-}
+// OAuth token is now managed by claude-oauth.ts module
 
 // Server-side AI proxy for logged-in users without local OAuth
 async function serverAiRequest(endpoint: string, body: any): Promise<any> {
@@ -455,6 +438,18 @@ app.whenReady().then(() => {
     await authLogout();
     return true;
   });
+
+  // IPC: Claude OAuth
+  ipcMain.handle("oauth:status", () => getOAuthStatus());
+  ipcMain.handle("oauth:connect", async () => {
+    return startOAuthFlow();
+  });
+  ipcMain.handle("oauth:refresh", async () => {
+    return refreshOAuthToken();
+  });
+
+  // Start OAuth auto-refresh
+  startAutoRefresh();
 
   // Auto-refresh tokens if logged in
   const authState = getAuthState();
