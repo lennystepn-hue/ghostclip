@@ -10,6 +10,8 @@ interface AiStatus {
   oauth: { hasToken: boolean; expired: boolean; hasCli: boolean };
   hasApiKey: boolean;
   apiKeyPreview: string | null;
+  hasOpenAiKey: boolean;
+  openAiKeyPreview: string | null;
   active: boolean;
 }
 
@@ -37,7 +39,7 @@ export function AccountView() {
       setAuthState(state || { loggedIn: false, user: null, device: null });
       setClipCount(clips?.length || 0);
       setSyncConnected(sync || false);
-      setAiStatus(ai || { oauth: { hasToken: false, expired: false, hasCli: false }, hasApiKey: false, apiKeyPreview: null, active: false });
+      setAiStatus(ai || { oauth: { hasToken: false, expired: false, hasCli: false }, hasApiKey: false, apiKeyPreview: null, hasOpenAiKey: false, openAiKeyPreview: null, active: false });
     } catch {} finally {
       setLoading(false);
     }
@@ -83,6 +85,9 @@ export function AccountView() {
         <StatCard label="AI Status" value={aiStatus.active ? "Aktiv" : "Inaktiv"} color={aiStatus.active ? "#22c55e" : "#5c5c75"} />
         <StatCard label="Cloud Sync" value={authState.loggedIn ? (syncConnected ? "Verbunden" : "Getrennt") : "—"} color={syncConnected ? "#22c55e" : "#5c5c75"} />
       </div>
+
+      {/* === Semantic Search (OpenAI) === */}
+      <OpenAiSection aiStatus={aiStatus} onRefresh={loadState} />
 
       {/* === Updates === */}
       <UpdateSection />
@@ -369,6 +374,148 @@ function AiSection({ aiStatus, onRefresh }: { aiStatus: AiStatus; onRefresh: () 
         }}>
           {msg}
         </p>
+      )}
+    </div>
+  );
+}
+
+// === OpenAI Semantic Search Section ===
+
+function OpenAiSection({ aiStatus, onRefresh }: { aiStatus: AiStatus; onRefresh: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [key, setKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const api = (window as any).ghostclip;
+
+  async function handleSave() {
+    if (!key.trim()) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api?.setOpenAiKey?.(key.trim());
+      setMsg("OpenAI Key gespeichert!");
+      setKey("");
+      onRefresh();
+    } catch (err: any) {
+      setMsg(err?.message || "Fehler");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove() {
+    await api?.removeOpenAiKey?.();
+    setMsg(null);
+    onRefresh();
+  }
+
+  return (
+    <div style={{
+      borderRadius: "16px", marginBottom: "20px",
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      overflow: "hidden",
+    }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: "100%", padding: "16px 20px",
+          background: "transparent", border: "none",
+          color: "#8888a0", fontSize: "13px", fontWeight: 600,
+          cursor: "pointer", textAlign: "left",
+          display: "flex", alignItems: "center", gap: "10px",
+        }}
+      >
+        <span style={{
+          fontSize: "10px", transition: "transform 0.2s",
+          transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+          display: "inline-block",
+        }}>
+          &#9654;
+        </span>
+        Semantic Search (OpenAI)
+        <span style={{ fontSize: "11px", fontWeight: 400, marginLeft: "auto", color: aiStatus.hasOpenAiKey ? "#22c55e" : "#5c5c75" }}>
+          {aiStatus.hasOpenAiKey ? "Aktiv" : "Optional"}
+        </span>
+      </button>
+
+      {expanded && (
+        <div style={{ padding: "0 20px 20px" }}>
+          <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px", lineHeight: "1.5" }}>
+            OpenAI Embeddings fuer semantische Suche. Suche nach Bedeutung statt nur nach Woertern.
+            {" "}Erstelle einen Key auf{" "}
+            <span
+              style={{ color: "#4263eb", cursor: "pointer", textDecoration: "underline" }}
+              onClick={() => api?.openUrl?.("https://platform.openai.com/api-keys")}
+            >
+              platform.openai.com
+            </span>
+          </p>
+
+          {aiStatus.hasOpenAiKey ? (
+            <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
+                <MiniRow label="API Key" value={aiStatus.openAiKeyPreview || "***"} />
+                <MiniRow label="Modell" value="text-embedding-3-small" />
+              </div>
+              <button
+                onClick={handleRemove}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px", width: "100%",
+                  border: "1px solid rgba(239,68,68,0.15)", background: "transparent",
+                  color: "#ef4444", fontSize: "11px", cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                OpenAI Key entfernen
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="password"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="sk-proj-..."
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: "10px",
+                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#e0e0e8", fontSize: "13px", outline: "none",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(66,99,235,0.5)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+              />
+              <button
+                onClick={handleSave}
+                disabled={saving || !key.trim()}
+                style={{
+                  padding: "10px 18px", borderRadius: "10px", border: "none",
+                  background: !key.trim() ? "#3a3a52" : "#4263eb",
+                  color: "white", fontSize: "13px", fontWeight: 600,
+                  cursor: !key.trim() ? "not-allowed" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {saving ? "..." : "Speichern"}
+              </button>
+            </div>
+          )}
+
+          {msg && (
+            <p style={{
+              fontSize: "11px", marginTop: "10px", textAlign: "center",
+              color: msg.includes("gespeichert") ? "#22c55e" : "#ef4444",
+            }}>
+              {msg}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
