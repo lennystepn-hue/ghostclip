@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@ghostclip/ui";
 import { ClipFeed } from "./views/ClipFeed";
 import { SettingsView } from "./views/SettingsView";
@@ -36,15 +36,29 @@ export function App() {
   const isFloatingWidget = params?.get("floatingWidget") === "true";
 
   const [activeView, setActiveView] = useState("feed");
+  const [clipCounts, setClipCounts] = useState({ total: 0, pinned: 0, today: 0 });
 
-  // Listen for navigation from main process
-  useEffect(() => {
-    if (isQuickPanel) return;
+  const updateCounts = useCallback(async () => {
     const api = (window as any).ghostclip;
-    if (!api) return;
+    if (!api?.getClips) return;
+    const clips = await api.getClips();
+    if (!clips) return;
+    const today = new Date().toDateString();
+    setClipCounts({
+      total: clips.filter((c: any) => !c.archived).length,
+      pinned: clips.filter((c: any) => c.pinned).length,
+      today: clips.filter((c: any) => new Date(c.createdAt).toDateString() === today && !c.archived).length,
+    });
+  }, []);
 
-    // Would listen for IPC events here in production
-  }, [isQuickPanel]);
+  useEffect(() => {
+    if (isQuickPanel || isReplyPanel || isFloatingWidget) return;
+    updateCounts();
+    const api = (window as any).ghostclip;
+    if (!api?.onClipNew) return;
+    const cleanup = api.onClipNew(() => updateCounts());
+    return cleanup;
+  }, [isQuickPanel, isReplyPanel, isFloatingWidget, updateCounts]);
 
   if (isQuickPanel) {
     return <QuickPanelView />;
@@ -119,7 +133,13 @@ export function App() {
 
       {/* Sidebar */}
       <div className="pt-8">
-        <Sidebar activeItem={activeView} onItemClick={setActiveView} />
+        <Sidebar
+          activeItem={activeView}
+          onItemClick={setActiveView}
+          clipCount={clipCounts.total}
+          pinnedCount={clipCounts.pinned}
+          todayCount={clipCounts.today}
+        />
       </div>
 
       {/* Main Content */}

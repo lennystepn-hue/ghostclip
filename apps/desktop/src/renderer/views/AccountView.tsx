@@ -632,7 +632,13 @@ function SyncSection({
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {devices.map((d: any) => {
                 const icon = d.platform === "darwin" ? "🍎" : d.platform === "linux" ? "🐧" : "🪟";
-                const lastSync = d.last_sync ? new Date(d.last_sync).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+                let lastSync = "—";
+                if (d.last_sync) {
+                  const date = new Date(d.last_sync);
+                  if (!isNaN(date.getTime())) {
+                    lastSync = date.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+                  }
+                }
                 return (
                   <div key={d.id} style={{
                     padding: "10px 12px", borderRadius: "10px",

@@ -7,13 +7,14 @@ interface SidebarItem {
   id: string;
   label: string;
   icon: React.ReactNode;
-  badge?: number;
 }
 
 interface SidebarProps {
   activeItem: string;
   onItemClick: (id: string) => void;
   clipCount?: number;
+  pinnedCount?: number;
+  todayCount?: number;
   className?: string;
 }
 
@@ -36,7 +37,45 @@ const bottomItems: SidebarItem[] = [
   { id: "account", label: "Account", icon: <User className="w-4 h-4" /> },
 ];
 
-export function Sidebar({ activeItem, onItemClick, clipCount, className }: SidebarProps) {
+function NavButton({ item, active, badge, onClick }: {
+  item: SidebarItem; active: boolean; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150 relative",
+        active
+          ? "bg-ghost-600/15 text-ghost-300"
+          : "text-surface-700 hover:text-surface-900 hover:bg-surface-200",
+      )}
+    >
+      {/* Active indicator line */}
+      {active && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-ghost-400" />
+      )}
+      {item.icon}
+      <span className="flex-1 text-left">{item.label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className={cn(
+          "text-[10px] font-semibold min-w-[18px] text-center px-1 py-0.5 rounded-full",
+          active ? "bg-ghost-600/25 text-ghost-300" : "bg-surface-300 text-surface-600",
+        )}>
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export function Sidebar({ activeItem, onItemClick, clipCount, pinnedCount, todayCount, className }: SidebarProps) {
+  const getBadge = (id: string): number | undefined => {
+    if (id === "feed" && clipCount) return clipCount;
+    if (id === "pinned" && pinnedCount) return pinnedCount;
+    if (id === "today" && todayCount) return todayCount;
+    return undefined;
+  };
+
   return (
     <div className={cn("flex flex-col h-full w-52 py-4 px-2", "bg-surface-100 border-r border-white/5", className)}>
       {/* Logo */}
@@ -45,27 +84,18 @@ export function Sidebar({ activeItem, onItemClick, clipCount, className }: Sideb
           <Clipboard className="w-4 h-4 text-white" />
         </div>
         <span className="font-semibold text-surface-900 text-sm">GhostClip</span>
-        {clipCount !== undefined && (
-          <span className="ml-auto text-xs text-surface-600">{clipCount}</span>
-        )}
       </div>
 
       {/* Main nav */}
       <nav className="flex-1 space-y-0.5">
         {mainItems.map((item) => (
-          <button
+          <NavButton
             key={item.id}
+            item={item}
+            active={activeItem === item.id}
+            badge={getBadge(item.id)}
             onClick={() => onItemClick(item.id)}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150",
-              activeItem === item.id
-                ? "bg-ghost-600/15 text-ghost-300"
-                : "text-surface-700 hover:text-surface-900 hover:bg-surface-200",
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </button>
+          />
         ))}
       </nav>
 
@@ -75,19 +105,12 @@ export function Sidebar({ activeItem, onItemClick, clipCount, className }: Sideb
       {/* Bottom nav */}
       <nav className="space-y-0.5">
         {bottomItems.map((item) => (
-          <button
+          <NavButton
             key={item.id}
+            item={item}
+            active={activeItem === item.id}
             onClick={() => onItemClick(item.id)}
-            className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150",
-              activeItem === item.id
-                ? "bg-ghost-600/15 text-ghost-300"
-                : "text-surface-700 hover:text-surface-900 hover:bg-surface-200",
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </button>
+          />
         ))}
       </nav>
     </div>

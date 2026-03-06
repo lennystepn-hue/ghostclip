@@ -740,13 +740,18 @@ app.whenReady().then(() => {
       const devices = await getDevices();
       const currentDeviceId = auth.device?.id;
       return devices.map((d: any) => ({
-        ...d,
+        id: d.id,
+        name: d.name,
+        platform: d.platform === "darwin" ? "mac" : d.platform,
+        isOnline: true,
+        lastSync: d.last_sync || d.created_at || "",
+        clipCount: 0,
         isCurrent: d.id === currentDeviceId,
       }));
     }
     const hostname = require("os").hostname();
     const platform = process.platform === "linux" ? "linux" : process.platform === "darwin" ? "mac" : "windows";
-    return [{ id: "local", name: hostname, platform, isCurrent: true }];
+    return [{ id: "local", name: hostname, platform, isOnline: true, lastSync: new Date().toISOString(), clipCount: 0, isCurrent: true }];
   });
 
   // IPC: Vision/OCR (local OAuth/API key or server proxy)
