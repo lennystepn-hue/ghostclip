@@ -38,15 +38,39 @@ jobs:
       - run: pnpm install
       - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
-      - name: Build, sign & notarize
+      - name: Build & sign (no notarize)
         run: cd apps/desktop && npx electron-builder --mac dmg --publish never
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        timeout-minutes: 10
+      - name: Notarize with retry
+        run: |
+          APP="apps/desktop/release/mac-arm64/GhostClip.app"
+          DMG=$(ls apps/desktop/release/GhostClip-*.dmg)
+          echo "Submitting $DMG for notarization..."
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt/3..."
+            if xcrun notarytool submit "$DMG" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait --timeout 15m 2>&1 | tee /tmp/notarize.log; then
+              echo "Notarization succeeded!"
+              xcrun stapler staple "$DMG"
+              exit 0
+            fi
+            echo "Attempt $attempt failed, waiting 30s before retry..."
+            sleep 30
+          done
+          echo "All 3 attempts failed. Last log:"
+          cat /tmp/notarize.log
+          exit 1
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        timeout-minutes: 40
+        timeout-minutes: 50
       - uses: actions/upload-artifact@v4
         with:
           name: mac
