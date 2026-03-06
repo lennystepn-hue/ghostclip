@@ -1,6 +1,6 @@
 {
   "name": "@ghostclip/desktop",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "private": true,
   "description": "AI-powered Clipboard Manager — smart tagging, vision OCR, encrypted sync",
   "author": {
