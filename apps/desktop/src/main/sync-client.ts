@@ -5,7 +5,7 @@ import { encryptContent, decryptContent, isEncryptionReady } from "./encryption"
 let socket: Socket | null = null;
 let offlineQueue: any[] = [];
 
-export function connectSync(token: string, serverUrl: string = "http://localhost:4000") {
+export function connectSync(token: string, serverUrl: string = "https://api.ghost-clip.com") {
   if (socket?.connected) return;
 
   socket = io(serverUrl, {

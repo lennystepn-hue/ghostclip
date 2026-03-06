@@ -2,7 +2,7 @@ import { getSetting, setSetting } from "./db";
 import { connectSync, disconnectSync } from "./sync-client";
 import { net } from "electron";
 
-const DEFAULT_SERVER = "https://api.ghostclip.188-40-80-251.nip.io";
+const DEFAULT_SERVER = "https://api.ghost-clip.com";
 
 function getServerUrl(): string {
   return getSetting("syncServer", DEFAULT_SERVER);

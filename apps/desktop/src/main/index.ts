@@ -84,7 +84,7 @@ function getAiCredentials(): { oauthToken?: string; apiKey?: string } {
 // Server-side AI proxy for logged-in users without local OAuth
 async function serverAiRequest(endpoint: string, body: any): Promise<any> {
   const token = getSetting("auth_access_token");
-  const server = getSetting("syncServer", "https://api.ghostclip.188-40-80-251.nip.io");
+  const server = getSetting("syncServer", "https://api.ghost-clip.com");
   if (!token) return null;
 
   const res = await fetch(`${server}/api/ai/${endpoint}`, {
@@ -108,8 +108,12 @@ function hasAiAccess(oauthToken: string | null): boolean {
   return !!authToken;
 }
 
+function getOpenAiKey(): string | null {
+  return getSetting("openai_api_key") || process.env.OPENAI_API_KEY || null;
+}
+
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAiKey();
   if (!apiKey) return null;
   try {
     const res = await fetch("https://api.openai.com/v1/embeddings", {
@@ -426,7 +430,7 @@ app.whenReady().then(() => {
 
   // Connect to sync server if configured
   const syncToken = getSetting("syncToken");
-  const syncServer = getSetting("syncServer", "http://localhost:4000");
+  const syncServer = getSetting("syncServer", "https://api.ghost-clip.com");
   if (syncToken) {
     connectSync(syncToken, syncServer);
   }
@@ -444,7 +448,7 @@ app.whenReady().then(() => {
   ipcMain.handle("sync:connect", (_e, token: string, server?: string) => {
     setSetting("syncToken", token);
     if (server) setSetting("syncServer", server);
-    connectSync(token, server || "http://localhost:4000");
+    connectSync(token, server || "https://api.ghost-clip.com");
     return true;
   });
 
@@ -464,12 +468,15 @@ app.whenReady().then(() => {
   // IPC: Claude AI (OAuth + API Key)
   ipcMain.handle("ai:status", () => {
     const oauth = getOAuthStatus();
-    const key = getApiKey();
+    const claudeKey = getApiKey();
+    const openaiKey = getOpenAiKey();
     return {
       oauth,
-      hasApiKey: !!key,
-      apiKeyPreview: key ? `${key.slice(0, 10)}...${key.slice(-4)}` : null,
-      active: (oauth.hasToken && !oauth.expired) || !!key,
+      hasApiKey: !!claudeKey,
+      apiKeyPreview: claudeKey ? `${claudeKey.slice(0, 10)}...${claudeKey.slice(-4)}` : null,
+      hasOpenAiKey: !!openaiKey,
+      openAiKeyPreview: openaiKey ? `${openaiKey.slice(0, 10)}...${openaiKey.slice(-4)}` : null,
+      active: (oauth.hasToken && !oauth.expired) || !!claudeKey,
     };
   });
   ipcMain.handle("oauth:status", () => getOAuthStatus());
@@ -482,6 +489,14 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("ai:removeApiKey", () => {
     setSetting("anthropic_api_key", "");
+    return true;
+  });
+  ipcMain.handle("ai:setOpenAiKey", (_e, key: string) => {
+    setSetting("openai_api_key", key.trim());
+    return true;
+  });
+  ipcMain.handle("ai:removeOpenAiKey", () => {
+    setSetting("openai_api_key", "");
     return true;
   });
 
@@ -547,7 +562,7 @@ app.whenReady().then(() => {
     startTokenRefresh();
     // Auto-connect sync on startup
     const token = getSetting("auth_access_token");
-    const server = getSetting("syncServer", "https://api.ghostclip.188-40-80-251.nip.io");
+    const server = getSetting("syncServer", "https://api.ghost-clip.com");
     if (token) connectSync(token, server);
   }
 
