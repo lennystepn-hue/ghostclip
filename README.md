@@ -49,15 +49,28 @@ It runs silently in your system tray, captures everything you copy, and makes it
 
 ## Quick Start
 
+### If you have Claude CLI installed (recommended)
+
 ```
-1. Download GhostClip for your platform
-2. Open the app
-3. Go to Account → Click "Connect Claude"
-4. Login with your Anthropic account in the browser
-5. Done — AI features are active
+1. Download GhostClip → open the app
+2. That's it — AI works automatically
 ```
 
-That's it. No API keys, no server, no account needed. You use your own Claude token. All data stays on your machine.
+GhostClip detects your Claude CLI login and uses it. If you're already logged into Claude Code or Claude CLI, **AI features are active immediately** — no setup needed.
+
+### If you don't have Claude CLI
+
+```
+1. Download GhostClip → open the app
+2. Go to Account → choose how to connect:
+   a) "Claude Login" — opens browser, login with Anthropic account (requires Claude CLI)
+   b) "API Key" — paste your key from console.anthropic.com
+3. Done — AI features are active
+```
+
+> **What is Claude CLI?** It's Anthropic's command-line tool. If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), you already have it. Install with `npm install -g @anthropic-ai/claude-cli`, then run `claude auth login` once.
+
+All data stays on your machine. You use your own Claude token — GhostClip never sees your credentials.
 
 <br/>
 
@@ -151,17 +164,25 @@ Every clip is automatically enriched with tags, summaries, mood, and sensitivity
 
 ## How the AI Works
 
-GhostClip uses Claude (by Anthropic) for all AI features. Click **"Connect Claude"** in the app — it opens your browser, you log in with your Anthropic account, and you're done. Your own token, your own usage.
+GhostClip uses **Claude** (by Anthropic) for all AI features. There are two ways to connect:
 
-**No API key needed.** GhostClip uses Claude OAuth, the same auth flow as Claude.ai. Works with any Anthropic plan.
+### Option A: Claude CLI (zero config)
+
+If [Claude CLI](https://docs.anthropic.com/en/docs/claude-code/overview) is installed and logged in, GhostClip picks up your token automatically from `~/.claude/.credentials.json`. Nothing to configure — it just works.
+
+You can also click **"Claude Login"** in the app to trigger `claude auth login` — opens your browser, you log in, token is saved, done.
+
+### Option B: API Key
+
+Go to [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys), create a key, paste it in the app under Account → API Key → Save. Or set `ANTHROPIC_API_KEY` as an environment variable.
+
+### Which models are used?
 
 | Task | Model | Why |
 |------|-------|-----|
 | **Enrichment** (tags, summary, mood) | Claude Haiku 4.5 | Fast — runs on every clip |
 | **Chat & Replies** | Claude Sonnet 4.6 | Smart — needs conversation context |
 | **Vision & OCR** | Claude Sonnet 4.6 | Image understanding + text extraction |
-
-> **Alternative:** You can also set `ANTHROPIC_API_KEY` in the environment if you prefer using an API key directly.
 
 <br/>
 
