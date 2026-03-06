@@ -26,7 +26,7 @@
 
 <br/>
 
-[Features](#-features) &middot; [Quick Start](#-quick-start) &middot; [AI Features](#-ai-features) &middot; [Download](#-download) &middot; [Self-Hosting](#-self-hosting) &middot; [Architecture](#-architecture) &middot; [Contributing](#-contributing)
+[Features](#-features) &middot; [Screenshots](#-screenshots) &middot; [Quick Start](#-quick-start) &middot; [AI Features](#-ai-features) &middot; [Download](#-download) &middot; [Self-Hosting](#-self-hosting) &middot; [Architecture](#-architecture) &middot; [Contributing](#-contributing)
 
 <br/>
 </div>
@@ -113,6 +113,36 @@ Create a free account in the app for multi-device sync:
 </td>
 </tr>
 </table>
+
+---
+
+## Screenshots
+
+### Clip Feed — AI-Tagged Clips
+
+Every clip is automatically enriched with tags, summaries, mood, and sensitivity detection. URLs show page titles and content. Images get OCR text extraction.
+
+<div align="center">
+<img src="docs/screenshots/desktop-clips.png" width="850" alt="GhostClip Desktop — Clip Feed with AI Tags"/>
+</div>
+
+<br/>
+
+### Account & Settings
+
+Manage your Claude connection, sync devices, and configure AI behavior.
+
+<div align="center">
+<img src="docs/screenshots/desktop-account.png" width="850" alt="GhostClip Desktop — Account & Settings"/>
+</div>
+
+<br/>
+
+### Landing Page
+
+<div align="center">
+<img src="docs/screenshots/landing-page.png" width="850" alt="GhostClip Landing Page"/>
+</div>
 
 ---
 
