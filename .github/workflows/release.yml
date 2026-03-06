@@ -38,6 +38,12 @@ jobs:
       - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
       - run: cd apps/desktop && npx electron-builder --mac dmg --publish never
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: mac
