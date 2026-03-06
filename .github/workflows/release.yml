@@ -43,22 +43,19 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         timeout-minutes: 10
-      - name: Notarize & staple
-        run: |
-          set -o pipefail
-          DMG=$(ls apps/desktop/release/GhostClip-*.dmg)
-          echo "Submitting $DMG for notarization..."
-          xcrun notarytool submit "$DMG" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-          echo "Notarization succeeded! Stapling..."
-          xcrun stapler staple "$DMG"
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # TODO: Re-enable notarization once Apple approves the dev account
+      # - name: Notarize & staple
+      #   run: |
+      #     set -o pipefail
+      #     DMG=$(ls apps/desktop/release/GhostClip-*.dmg)
+      #     xcrun notarytool submit "$DMG" \
+      #       --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+      #       --team-id "$APPLE_TEAM_ID" --wait
+      #     xcrun stapler staple "$DMG"
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: mac
