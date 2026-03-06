@@ -138,12 +138,6 @@ Manage your Claude connection, sync devices, and configure AI behavior.
 
 <br/>
 
-### Landing Page
-
-<div align="center">
-<img src="docs/screenshots/landing-page.png" width="850" alt="GhostClip Landing Page"/>
-</div>
-
 ---
 
 ## Quick Start
