@@ -50,8 +50,7 @@ import {
   getUsedReplyStyles,
 } from "./db";
 
-// Allow running as root (dev/container environments)
-app.commandLine.appendSwitch("no-sandbox");
+// Note: Do NOT use --no-sandbox globally — it disables Chromium's security layer.
 
 // Prevent crash on EPIPE/broken pipe errors
 process.on("uncaughtException", (err) => {

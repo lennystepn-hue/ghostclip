@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFile, exec, execSync } from "node:child_process";
+import { exec, execSync } from "node:child_process";
 
 function getCredsPath(): string {
   const home = process.env.USERPROFILE || process.env.HOME || "/root";
@@ -10,7 +10,7 @@ function getCredsPath(): string {
 function readCredsFromKeychain(): Record<string, any> | null {
   if (process.platform !== "darwin") return null;
   try {
-    const account = process.env.USER || process.env.LOGNAME || "default";
+    const account = (process.env.USER || process.env.LOGNAME || "default").replace(/[^a-zA-Z0-9._-]/g, "");
     const raw = execSync(
       `security find-generic-password -s "Claude Code-credentials" -a "${account}" -w 2>/dev/null`,
       { encoding: "utf-8", timeout: 5000 },
@@ -152,7 +152,7 @@ export function startOAuthFlow(): Promise<{ success: boolean; error?: string }> 
 
     child.on("error", (err) => {
       if ((err as any).code === "ENOENT") {
-        resolve({ success: false, error: "Claude CLI nicht gefunden. Installiere es mit: npm install -g @anthropic-ai/claude-cli" });
+        resolve({ success: false, error: "Claude CLI nicht gefunden. Installiere es mit: npm install -g @anthropic-ai/claude-code" });
       } else {
         resolve({ success: false, error: err.message });
       }

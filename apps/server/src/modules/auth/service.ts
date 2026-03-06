@@ -3,8 +3,18 @@ import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import { pool } from "../../database/connection";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+if (!process.env.JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable is required. Refusing to start with an insecure default.");
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const SALT_ROUNDS = 12;
+
+/** Hash a refresh token with SHA-256 for fast O(1) lookup.
+ *  Refresh tokens are 64 random bytes — brute-forcing is infeasible,
+ *  so bcrypt's slowness adds no security value here, only DoS risk. */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 export interface RegisterInput {
   email: string;
@@ -59,12 +69,12 @@ export async function register(input: RegisterInput) {
     );
 
     const refreshToken = crypto.randomBytes(64).toString("hex");
-    const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+    const refreshTokenSha = hashToken(refreshToken);
 
     await client.query(
       `INSERT INTO refresh_tokens (user_id, device_id, token_hash, expires_at)
        VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-      [user.id, device.id, refreshTokenHash]
+      [user.id, device.id, refreshTokenSha]
     );
 
     await client.query("COMMIT");
@@ -130,12 +140,12 @@ export async function login(input: LoginInput) {
   );
 
   const refreshToken = crypto.randomBytes(64).toString("hex");
-  const refreshTokenHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+  const refreshTokenSha = hashToken(refreshToken);
 
   await pool.query(
     `INSERT INTO refresh_tokens (user_id, device_id, token_hash, expires_at)
      VALUES ($1, $2, $3, NOW() + INTERVAL '30 days')`,
-    [user.id, device.id, refreshTokenHash]
+    [user.id, device.id, refreshTokenSha]
   );
 
   return {
@@ -148,24 +158,24 @@ export async function login(input: LoginInput) {
 }
 
 export async function refreshAccessToken(refreshToken: string) {
-  // Find all non-expired refresh tokens
+  // O(1) lookup via SHA-256 hash instead of O(n) bcrypt scan
+  const tokenSha = hashToken(refreshToken);
   const result = await pool.query(
-    "SELECT id, user_id, device_id, token_hash FROM refresh_tokens WHERE expires_at > NOW()"
+    "SELECT id, user_id, device_id FROM refresh_tokens WHERE token_hash = $1 AND expires_at > NOW()",
+    [tokenSha]
   );
 
-  for (const row of result.rows) {
-    const valid = await bcrypt.compare(refreshToken, row.token_hash);
-    if (valid) {
-      const accessToken = jwt.sign(
-        { userId: row.user_id, deviceId: row.device_id },
-        JWT_SECRET,
-        { expiresIn: "15m" }
-      );
-      return { accessToken };
-    }
+  if (result.rows.length === 0) {
+    throw new Error("INVALID_REFRESH_TOKEN");
   }
 
-  throw new Error("INVALID_REFRESH_TOKEN");
+  const row = result.rows[0];
+  const accessToken = jwt.sign(
+    { userId: row.user_id, deviceId: row.device_id },
+    JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  return { accessToken };
 }
 
 export async function logout(userId: string, deviceId: string) {

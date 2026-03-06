@@ -10,7 +10,7 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 function readCredsFromKeychain(): Record<string, any> | null {
   if (process.platform !== "darwin") return null;
   try {
-    const account = process.env.USER || process.env.LOGNAME || "default";
+    const account = (process.env.USER || process.env.LOGNAME || "default").replace(/[^a-zA-Z0-9._-]/g, "");
     const raw = execSync(
       `security find-generic-password -s "Claude Code-credentials" -a "${account}" -w 2>/dev/null`,
       { encoding: "utf-8", timeout: 5000 },
