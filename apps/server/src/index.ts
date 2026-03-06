@@ -6,10 +6,11 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 
 const app: Express = express();
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.APP_URL || "http://localhost:3000",
+    origin: true,
     credentials: true,
   },
 });
@@ -17,7 +18,7 @@ const io = new Server(httpServer, {
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.APP_URL || "http://localhost:3000",
+    origin: true,
     credentials: true,
   }),
 );
