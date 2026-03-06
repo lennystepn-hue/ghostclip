@@ -128,6 +128,26 @@ Every clip is automatically enriched with tags, summaries, mood, and sensitivity
 
 <br/>
 
+### Tags — AI-Generated Tag Cloud
+
+All tags are generated automatically by AI. Click any tag to filter your clips by topic.
+
+<div align="center">
+<img src="docs/screenshots/desktop-tags.png" width="850" alt="GhostClip Desktop — AI Tag Cloud"/>
+</div>
+
+<br/>
+
+### AI Chat — Ask Your Clipboard
+
+Chat with your clipboard history. AI uses semantic search to find relevant clips and generates structured answers with markdown formatting.
+
+<div align="center">
+<img src="docs/screenshots/desktop-chat.png" width="850" alt="GhostClip Desktop — AI Chat"/>
+</div>
+
+<br/>
+
 ### Account & Settings
 
 Manage your Claude connection, sync devices, and configure AI behavior.
