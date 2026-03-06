@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { cn } from "../utils";
-import { Clipboard, Pin, Tag, FolderOpen, Sparkles, MessageCircle, Clock, Calendar, Archive, Settings, User, BarChart3, Monitor } from "lucide-react";
+import { Ghost, Clipboard, Pin, Tag, FolderOpen, Sparkles, MessageCircle, Clock, Calendar, Archive, Settings, User, BarChart3, Monitor } from "lucide-react";
 
 interface SidebarItem {
   id: string;
@@ -81,7 +81,7 @@ export function Sidebar({ activeItem, onItemClick, clipCount, pinnedCount, today
       {/* Logo */}
       <div className="flex items-center gap-2 px-3 mb-6">
         <div className="w-7 h-7 rounded-lg bg-ghost-600 flex items-center justify-center">
-          <Clipboard className="w-4 h-4 text-white" />
+          <Ghost className="w-4 h-4 text-white" />
         </div>
         <span className="font-semibold text-surface-900 text-sm">GhostClip</span>
       </div>

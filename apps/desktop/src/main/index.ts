@@ -428,12 +428,7 @@ app.whenReady().then(() => {
   // Global hotkeys
   registerHotkeys(mainWindow);
 
-  // Connect to sync server if configured
-  const syncToken = getSetting("syncToken");
-  const syncServer = getSetting("syncServer", "https://api.ghost-clip.com");
-  if (syncToken) {
-    connectSync(syncToken, syncServer);
-  }
+  // Sync connection is handled below after auth check (line ~563)
 
   // IPC: Encryption status
   ipcMain.handle("encryption:status", () => isEncryptionReady());

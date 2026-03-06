@@ -1,18 +1,21 @@
 import { io, Socket } from "socket.io-client";
-import { insertClip, updateClip, deleteClipById, getAllClips } from "./db";
+import { insertClip, updateClip, deleteClipById, getAllClips, getSetting } from "./db";
 import { encryptContent, decryptContent, isEncryptionReady } from "./encryption";
+import { refreshToken } from "./auth-client";
 
 let socket: Socket | null = null;
 let offlineQueue: any[] = [];
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 export function connectSync(token: string, serverUrl: string = "https://api.ghost-clip.com") {
   if (socket?.connected) return;
+  if (socket) { socket.disconnect(); socket = null; }
 
   socket = io(serverUrl, {
     auth: { token },
     reconnection: true,
     reconnectionDelay: 5000,
-    reconnectionAttempts: 10,
+    reconnectionAttempts: Infinity,
   });
 
   socket.on("connect", () => {
@@ -22,6 +25,20 @@ export function connectSync(token: string, serverUrl: string = "https://api.ghos
 
   socket.on("disconnect", (reason) => {
     console.log("Sync disconnected:", reason);
+  });
+
+  // On auth error (expired token), refresh and reconnect
+  socket.on("connect_error", async (err) => {
+    if (err.message === "Invalid token" || err.message === "Authentication required") {
+      console.log("Sync: token expired, refreshing...");
+      const success = await refreshToken();
+      if (success && socket) {
+        const newToken = getSetting("auth_access_token");
+        if (newToken) {
+          socket.auth = { token: newToken };
+        }
+      }
+    }
   });
 
   // Receive clips from other devices
@@ -76,12 +93,9 @@ export function connectSync(token: string, serverUrl: string = "https://api.ghos
     deleteClipById(data.id);
   });
 
-  socket.on("connect_error", (err) => {
-    console.error("Sync connection error:", err.message);
-  });
-
   // Heartbeat every 30 seconds
-  setInterval(() => {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => {
     if (socket?.connected) {
       socket.emit("device:heartbeat", {
         timestamp: Date.now(),
@@ -134,6 +148,7 @@ function flushOfflineQueue() {
 }
 
 export function disconnectSync() {
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
   socket?.disconnect();
   socket = null;
 }
