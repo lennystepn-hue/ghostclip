@@ -75,10 +75,7 @@ export function ChatView() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexShrink: 0 }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8" }}>
-          AI Chat
-        </h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "16px", flexShrink: 0 }}>
         <button
           onClick={clearHistory}
           style={{

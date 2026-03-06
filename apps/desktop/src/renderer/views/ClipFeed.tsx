@@ -1,9 +1,15 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useClips } from "../hooks/useClips";
 
-interface ClipFeedProps {
-  filter?: "all" | "pinned" | "today" | "week" | "archive";
-}
+type FilterType = "all" | "pinned" | "today" | "week" | "archive";
+
+const filterChips: { id: FilterType; label: string }[] = [
+  { id: "all", label: "Alle" },
+  { id: "today", label: "Heute" },
+  { id: "week", label: "Woche" },
+  { id: "pinned", label: "Gepinnt" },
+  { id: "archive", label: "Archiv" },
+];
 
 const typeEmoji: Record<string, string> = {
   text: "T",
@@ -25,8 +31,9 @@ function relativeTime(date: string): string {
   return new Date(date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
 }
 
-export function ClipFeed({ filter = "all" }: ClipFeedProps) {
+export function ClipFeed() {
   const { clips, loading, copyClip, pinClip, archiveClip, deleteClip } = useClips();
+  const [filter, setFilter] = useState<FilterType>("all");
   const [search, setSearch] = useState("");
   const [semanticMode, setSemanticMode] = useState(false);
   const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
@@ -115,6 +122,29 @@ export function ClipFeed({ filter = "all" }: ClipFeedProps) {
 
   return (
     <div>
+      {/* Filter Chips */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
+        {filterChips.map(chip => (
+          <button
+            key={chip.id}
+            onClick={() => setFilter(chip.id)}
+            style={{
+              padding: "5px 14px",
+              borderRadius: "20px",
+              border: filter === chip.id ? "1px solid rgba(92,124,250,0.35)" : "1px solid rgba(255,255,255,0.06)",
+              background: filter === chip.id ? "rgba(66,99,235,0.15)" : "rgba(255,255,255,0.02)",
+              color: filter === chip.id ? "#91a7ff" : "#6a6a80",
+              fontSize: "12px",
+              fontWeight: filter === chip.id ? 600 : 400,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px", alignItems: "center" }}>
         <div style={{ flex: 1, position: "relative" }}>

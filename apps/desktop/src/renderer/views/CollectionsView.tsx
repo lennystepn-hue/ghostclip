@@ -149,7 +149,7 @@ export function CollectionsView() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8" }}>Sammlungen</h2>
+        <div>{/* spacer */}</div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
             onClick={() => { setShowSmart(!showSmart); setShowCreate(false); }}

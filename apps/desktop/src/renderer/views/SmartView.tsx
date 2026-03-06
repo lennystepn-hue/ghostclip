@@ -33,8 +33,7 @@ export function SmartView() {
 
   return (
     <div>
-      <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8", marginBottom: "4px" }}>Smart Clips</h2>
-      <p style={{ fontSize: "12px", color: "#5c5c75", marginBottom: "20px" }}>
+      <p style={{ fontSize: "12px", color: "#5c5c75", marginBottom: "16px" }}>
         AI-kuratiert nach Relevanz, Sensibilitaet und Haeufigkeit
       </p>
 

@@ -23,9 +23,11 @@ export function TagsView() {
 
   return (
     <div>
-      <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#e0e0e8", marginBottom: "20px" }}>
-        Tags {selectedTag && <span style={{ color: "#748ffc" }}>/ {selectedTag}</span>}
-      </h2>
+      {selectedTag && (
+        <div style={{ fontSize: "14px", fontWeight: 500, color: "#748ffc", marginBottom: "16px" }}>
+          {selectedTag}
+        </div>
+      )}
 
       {!selectedTag ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>

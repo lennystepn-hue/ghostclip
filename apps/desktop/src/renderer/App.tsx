@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar } from "@ghostclip/ui";
 import { ClipFeed } from "./views/ClipFeed";
 import { SettingsView } from "./views/SettingsView";
-import { DevicesView } from "./views/DevicesView";
 import { AnalyticsView } from "./views/AnalyticsView";
 import { TagsView } from "./views/TagsView";
 import { CollectionsView } from "./views/CollectionsView";
@@ -13,42 +12,23 @@ import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
 import { FloatingWidget } from "./views/FloatingWidget";
 
-const viewTitles: Record<string, string> = {
-  feed: "Alle Clips",
-  pinned: "Gepinnte Clips",
-  tags: "Tags",
-  collections: "Sammlungen",
-  smart: "Smart Clips",
-  chat: "AI Chat",
-  today: "Heute",
-  week: "Diese Woche",
-  archive: "Archiv",
-  analytics: "Analytics",
-  devices: "Geraete",
-  settings: "Einstellungen",
-  account: "Account",
-};
-
 export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const isQuickPanel = params?.get("quickpanel") === "true";
   const isReplyPanel = params?.get("replypanel") === "true";
   const isFloatingWidget = params?.get("floatingWidget") === "true";
 
-  const [activeView, setActiveView] = useState("feed");
-  const [clipCounts, setClipCounts] = useState({ total: 0, pinned: 0, today: 0 });
+  const [activeView, setActiveView] = useState("clips");
+  const [clipCount, setClipCount] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+  const prevView = useRef(activeView);
 
   const updateCounts = useCallback(async () => {
     const api = (window as any).ghostclip;
     if (!api?.getClips) return;
     const clips = await api.getClips();
     if (!clips) return;
-    const today = new Date().toDateString();
-    setClipCounts({
-      total: clips.filter((c: any) => !c.archived).length,
-      pinned: clips.filter((c: any) => c.pinned).length,
-      today: clips.filter((c: any) => new Date(c.createdAt).toDateString() === today && !c.archived).length,
-    });
+    setClipCount(clips.filter((c: any) => !c.archived).length);
   }, []);
 
   useEffect(() => {
@@ -60,73 +40,63 @@ export function App() {
     return cleanup;
   }, [isQuickPanel, isReplyPanel, isFloatingWidget, updateCounts]);
 
-  if (isQuickPanel) {
-    return <QuickPanelView />;
-  }
+  const handleViewChange = (view: string) => {
+    if (view === activeView) return;
+    setTransitioning(true);
+    prevView.current = activeView;
+    setTimeout(() => {
+      setActiveView(view);
+      setTransitioning(false);
+    }, 120);
+  };
 
-  if (isReplyPanel) {
-    return <ReplyPanelView />;
-  }
-
-  if (isFloatingWidget) {
-    return <FloatingWidget />;
-  }
+  if (isQuickPanel) return <QuickPanelView />;
+  if (isReplyPanel) return <ReplyPanelView />;
+  if (isFloatingWidget) return <FloatingWidget />;
 
   const renderView = () => {
     switch (activeView) {
-      case "feed":
-        return <ClipFeed filter="all" />;
-      case "pinned":
-        return <ClipFeed filter="pinned" />;
-      case "today":
-        return <ClipFeed filter="today" />;
-      case "week":
-        return <ClipFeed filter="week" />;
-      case "tags":
-        return <TagsView />;
-      case "collections":
-        return <CollectionsView />;
-      case "smart":
-        return <SmartView />;
-      case "chat":
-        return <ChatView />;
-      case "archive":
-        return <ClipFeed filter="archive" />;
-      case "analytics":
-        return <AnalyticsView />;
-      case "devices":
-        return <DevicesView />;
-      case "settings":
-        return <SettingsView />;
-      case "account":
-        return <AccountView />;
-      default:
-        return <ClipFeed filter="all" />;
+      case "clips": return <ClipFeed />;
+      case "tags": return <TagsView />;
+      case "collections": return <CollectionsView />;
+      case "smart": return <SmartView />;
+      case "chat": return <ChatView />;
+      case "analytics": return <AnalyticsView />;
+      case "settings": return <SettingsView />;
+      case "account": return <AccountView />;
+      default: return <ClipFeed />;
     }
   };
 
   return (
     <div className="flex h-screen bg-surface-DEFAULT" style={{ WebkitAppRegion: "no-drag" } as any}>
+      {/* Page transition styles */}
+      <style>{`
+        @keyframes viewFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .view-enter { animation: viewFadeIn 0.2s ease-out both; }
+        .view-exit { opacity: 0; transform: translateY(-4px); transition: all 0.12s ease-in; }
+      `}</style>
+
       {/* Title bar (frameless window) */}
       <div
         className="fixed top-0 left-0 right-0 h-8 flex items-center justify-end px-2 z-50"
         style={{ WebkitAppRegion: "drag" } as any}
       >
-        <div
-          className="flex gap-1"
-          style={{ WebkitAppRegion: "no-drag" } as any}
-        >
+        <div className="flex gap-1.5" style={{ WebkitAppRegion: "no-drag" } as any}>
           <button
             onClick={() => (window as any).ghostclip?.minimize()}
-            className="w-3 h-3 rounded-full bg-surface-500 hover:bg-yellow-500 transition-colors"
+            className="w-3 h-3 rounded-full bg-surface-500/50 hover:bg-yellow-500 transition-colors duration-200"
           />
           <button
             onClick={() => (window as any).ghostclip?.maximize()}
-            className="w-3 h-3 rounded-full bg-surface-500 hover:bg-green-500 transition-colors"
+            className="w-3 h-3 rounded-full bg-surface-500/50 hover:bg-green-500 transition-colors duration-200"
           />
           <button
             onClick={() => (window as any).ghostclip?.close()}
-            className="w-3 h-3 rounded-full bg-surface-500 hover:bg-red-500 transition-colors"
+            className="w-3 h-3 rounded-full bg-surface-500/50 hover:bg-red-500 transition-colors duration-200"
           />
         </div>
       </div>
@@ -135,19 +105,17 @@ export function App() {
       <div className="pt-8">
         <Sidebar
           activeItem={activeView}
-          onItemClick={setActiveView}
-          clipCount={clipCounts.total}
-          pinnedCount={clipCounts.pinned}
-          todayCount={clipCounts.today}
+          onItemClick={handleViewChange}
+          clipCount={clipCount}
         />
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 pt-8 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-xl font-bold text-surface-900 mb-4">
-            {viewTitles[activeView] || "GhostClip"}
-          </h1>
+      <main className="flex-1 pt-8 overflow-y-auto">
+        <div
+          className={`max-w-4xl mx-auto px-6 py-4 ${transitioning ? "view-exit" : "view-enter"}`}
+          key={activeView}
+        >
           {renderView()}
         </div>
       </main>
