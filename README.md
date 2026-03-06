@@ -8,7 +8,7 @@
 
 ### Your AI-Powered Clipboard Manager
 
-**Copy anything. GhostClip remembers it, understands it, and syncs it everywhere.**
+**Copy anything. GhostClip remembers it, understands it, and makes it searchable.**
 
 <br/>
 
@@ -20,11 +20,11 @@
 
 <br/>
 
-**Linux** · **macOS** · **Windows** · **Web Dashboard**
+**Linux** · **macOS** · **Windows**
 
 <br/>
 
-[Features](#-what-it-does) · [Screenshots](#-screenshots) · [Pricing](#-pricing) · [Download](#-download) · [Self-Hosting](#-self-hosting) · [Architecture](#-architecture) · [Contributing](#-contributing)
+[Features](#-what-it-does) · [Quick Start](#-quick-start) · [Screenshots](#-screenshots) · [Download](#-download) · [Self-Hosting](#-self-hosting) · [Architecture](#-architecture) · [Contributing](#-contributing)
 
 <br/>
 </div>
@@ -40,6 +40,24 @@ You copy things all day — links, code, messages, passwords, screenshots. They 
 **GhostClip fixes this.**
 
 It runs silently in your system tray, captures everything you copy, and makes it searchable, organized, and intelligent. Not just a clipboard history — an AI-powered knowledge layer on top of your daily workflow.
+
+<br/>
+
+---
+
+<br/>
+
+## Quick Start
+
+```
+1. Download GhostClip for your platform
+2. Open the app
+3. Go to Account → Click "Connect Claude"
+4. Login with your Anthropic account in the browser
+5. Done — AI features are active
+```
+
+That's it. No API keys, no server, no account needed. You use your own Claude token. All data stays on your machine.
 
 <br/>
 
@@ -91,20 +109,19 @@ Same app, everywhere:
 - **Linux** — AppImage + .deb
 - **macOS** — .dmg (Intel + Apple Silicon)
 - **Windows** — .exe installer
-- **Web Dashboard** — access from any browser
 - **System tray** — always running, never in the way
 
 </td>
 <td width="50%" valign="top">
 
-### Cloud Sync
-Create an account directly in the app:
+### Cloud Sync (optional)
+Create an account in the app for multi-device sync:
 
 - **Real-time sync** via WebSocket (< 500ms)
 - **Offline queue** — works without internet
 - **Conflict resolution** across devices
-- **Server-side AI** — no local API keys needed
 - **E2E encryption** — server never sees your content
+- **Self-hostable** — run your own sync server
 
 </td>
 </tr>
@@ -128,53 +145,23 @@ Every clip is automatically enriched with tags, summaries, mood, and sensitivity
 
 <br/>
 
-### Account — Cloud Sync Registration
-
-Create an account directly in the app to enable cross-device sync. All AI features work immediately after registration — no API keys needed.
-
-<div align="center">
-<img src="docs/screenshots/desktop-account.png" width="850" alt="GhostClip Desktop — Account Registration"/>
-</div>
-
-<br/>
-
 ---
 
 <br/>
 
-## Pricing
+## How the AI Works
 
-<div align="center">
+GhostClip uses Claude (by Anthropic) for all AI features. Click **"Connect Claude"** in the app — it opens your browser, you log in with your Anthropic account, and you're done. Your own token, your own usage.
 
-| | **Community** | **Pro** | **Team** |
-|:---|:---:|:---:|:---:|
-| | Self-hosted | Cloud | Cloud |
-| **Price** | **Free** | **5 EUR / month** | **10 EUR / user / month** |
-| | | | |
-| Clipboard History | Unlimited | Unlimited | Unlimited |
-| AI Tagging & Summaries | &#10003; (own API key) | &#10003; | &#10003; |
-| Vision & OCR | &#10003; (own API key) | &#10003; | &#10003; |
-| AI Chat | &#10003; (own API key) | &#10003; | &#10003; |
-| Reply Suggestions | &#10003; (own API key) | &#10003; | &#10003; |
-| Semantic Search | &#10003; | &#10003; | &#10003; |
-| Local Storage (SQLite) | &#10003; | &#10003; | &#10003; |
-| | | | |
-| **Cloud Sync** | — | &#10003; | &#10003; |
-| Devices | 1 | Up to 10 | Unlimited |
-| Server-side AI (no API key needed) | — | &#10003; | &#10003; |
-| Web Dashboard | — | &#10003; | &#10003; |
-| Priority Support | — | &#10003; | &#10003; |
-| Shared Collections | — | — | &#10003; |
-| Team Analytics | — | — | &#10003; |
-| SSO / SAML | — | — | &#10003; |
+**No API key needed.** GhostClip uses Claude OAuth, the same auth flow as Claude.ai. Works with any Anthropic plan.
 
-</div>
+| Task | Model | Why |
+|------|-------|-----|
+| **Enrichment** (tags, summary, mood) | Claude Haiku 4.5 | Fast — runs on every clip |
+| **Chat & Replies** | Claude Sonnet 4.6 | Smart — needs conversation context |
+| **Vision & OCR** | Claude Sonnet 4.6 | Image understanding + text extraction |
 
-<br/>
-
-> **Community** is 100% free and open source. Self-host everything, bring your own Anthropic API key, keep all data on your machine. No limits, no tracking, no account needed.
->
-> **Pro** and **Team** use our managed cloud — we handle the server, the AI, and the sync. Create an account in the app, pay monthly, done.
+> **Alternative:** You can also set `ANTHROPIC_API_KEY` in the environment if you prefer using an API key directly.
 
 <br/>
 
@@ -192,10 +179,6 @@ Download the latest release for your platform from **[GitHub Releases](https://g
 | **Linux** (Debian/Ubuntu) | `GhostClip-0.1.0-amd64.deb` |
 | **macOS** | `GhostClip-0.1.0-x64.dmg` |
 | **Windows** | `GhostClip-0.1.0-x64.exe` |
-
-> **Cloud users (Pro / Team):** Download the app, create an account, done — AI and sync work instantly.
->
-> **Self-hosted (Community):** Download the app or [build from source](#-self-hosting). Bring your own API key.
 
 <details>
 <summary><strong>macOS: "App is damaged" fix</strong></summary>
@@ -216,61 +199,44 @@ Or right-click the app → Open → Open anyway.
 
 <br/>
 
-## How the AI Works
-
-GhostClip uses Claude (by Anthropic) for all AI features. There are two modes:
-
-### Self-Hosted (Community)
-Bring your own Anthropic API key (`ANTHROPIC_API_KEY`) or use [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) with a Max plan. GhostClip calls the API directly from your machine. No data leaves your device except to Anthropic.
-
-### Cloud (Pro / Team)
-When you create a GhostClip account, AI requests go through our server. We hold the API key — you don't need one. Your clips are sent to our server for AI enrichment, then the response comes back to your device. Clip content is encrypted in transit (TLS) and at rest (AES-256-GCM).
-
-**Which model does what?**
-
-| Task | Model | Why |
-|------|-------|-----|
-| **Enrichment** (tags, summary, mood) | Claude Haiku 4.5 | Fast, cheap — runs on every clip |
-| **Chat & Replies** | Claude Sonnet 4.6 | Smart — needs conversation context |
-| **Vision & OCR** | Claude Sonnet 4.6 | Image understanding + text extraction |
-
-<br/>
-
----
-
-<br/>
-
 ## Self-Hosting
 
-The entire stack is open source. Run your own GhostClip server with full AI, sync, and dashboard.
+The entire stack is open source. You can also self-host the sync server for multi-device sync.
 
 ### Prerequisites
 
 - Node.js >= 22
 - pnpm >= 9
 - Docker (for PostgreSQL + Redis)
-- Anthropic API key (for AI features)
 
-### Setup
+### Desktop Only (no server needed)
 
 ```bash
-# 1. Clone
+# 1. Clone & install
 git clone https://github.com/lennystepn-hue/ghostclip.git
 cd ghostclip && pnpm install
 
-# 2. Start databases
+# 2. Run the desktop app
+cd apps/desktop && pnpm dev
+```
+
+Connect Claude via the button in the app. Everything works locally.
+
+### With Sync Server
+
+```bash
+# 1. Start databases
 docker compose up -d
 
-# 3. Configure server
+# 2. Configure server
 cp apps/server/.env.example apps/server/.env
-# Set: JWT_SECRET, ANTHROPIC_API_KEY
+# Set: JWT_SECRET
 
-# 4. Initialize database
+# 3. Initialize database
 cd apps/server && pnpm db:init
 
-# 5. Start everything
+# 4. Start everything
 cd apps/server && pnpm dev      # API on :4000
-cd apps/web && pnpm dev          # Web on :3000
 cd apps/desktop && pnpm dev      # Desktop app
 ```
 
@@ -287,16 +253,6 @@ npx electron-builder --win nsis
 
 Output goes to `apps/desktop/release/`.
 
-### Production Deployment
-
-Put the server behind nginx or Caddy with SSL:
-
-```bash
-certbot --nginx -d api.your-domain.com
-```
-
-Point the desktop app to your server via the "Eigenen Server verwenden" option during login.
-
 <br/>
 
 ---
@@ -308,8 +264,8 @@ Point the desktop app to your server via the "Eigenen Server verwenden" option d
 ```
 ghostclip/
 ├── apps/
-│   ├── server/          # Express + Socket.io — Auth, Sync, AI proxy
-│   ├── web/             # Next.js 15 — Landing page + Web Dashboard
+│   ├── server/          # Express + Socket.io — Auth, Sync
+│   ├── web/             # Next.js 15 — Landing page
 │   └── desktop/         # Electron + Vite + React — Desktop app
 │
 ├── packages/
@@ -335,7 +291,7 @@ ghostclip/
         ├─ Fetch URL content (title, text, description)
         │
         ▼
-  AI Enrichment (async, background)
+  AI Enrichment (via your Claude token)
         │
         ├─ Tags, summary, mood, sensitivity
         ├─ OCR for images
@@ -343,7 +299,7 @@ ghostclip/
         ├─ Embedding for semantic search
         │
         ▼
-  Sync to cloud (if logged in, via WebSocket)
+  Sync to server (optional, if logged in)
 ```
 
 ### Tech Stack
@@ -351,9 +307,8 @@ ghostclip/
 | Layer | Technology |
 |-------|-----------|
 | **Desktop** | Electron 33, Vite, React 19, better-sqlite3 |
-| **Web** | Next.js 15 (App Router), Tailwind CSS |
 | **Server** | Express, Socket.io, PostgreSQL 16 + pgvector, Redis 7 |
-| **AI** | Claude API (Haiku 4.5 + Sonnet 4.6) |
+| **AI** | Claude API (Haiku 4.5 + Sonnet 4.6) via OAuth |
 | **Encryption** | AES-256-GCM, PBKDF2 (600k iterations) |
 | **CI/CD** | GitHub Actions — lint, test, build for Linux/Mac/Windows |
 

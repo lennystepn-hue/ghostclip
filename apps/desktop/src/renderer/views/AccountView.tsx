@@ -51,17 +51,174 @@ export function AccountView() {
     return <div style={{ color: "#5c5c75", padding: "40px", textAlign: "center" }}>Laden...</div>;
   }
 
-  if (!authState.loggedIn) {
-    return <AuthForm onSuccess={loadState} oauthStatus={oauthStatus} onOAuthRefresh={loadState} />;
-  }
+  const oauthConnected = oauthStatus.hasToken && !oauthStatus.expired;
+  const hostname = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const platform = hostname.includes("Linux") ? "Linux" : hostname.includes("Mac") ? "macOS" : "Windows";
 
-  return <AccountInfo authState={authState} clipCount={clipCount} syncConnected={syncConnected} oauthStatus={oauthStatus} onLogout={handleLogout} onOAuthRefresh={loadState} />;
+  return (
+    <div style={{ maxWidth: "520px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <div style={{
+          width: "72px", height: "72px", borderRadius: "18px", margin: "0 auto 16px",
+          background: "linear-gradient(135deg, #4263eb, #7c3aed)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "32px", color: "white", fontWeight: 700,
+          boxShadow: "0 8px 32px rgba(66,99,235,0.3)",
+        }}>G</div>
+        <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#e0e0e8" }}>GhostClip</h2>
+        <p style={{ fontSize: "13px", color: "#5c5c75", marginTop: "4px" }}>
+          Dein AI-Clipboard-Manager
+        </p>
+      </div>
+
+      {/* === SECTION 1: Claude AI (Primary) === */}
+      <OAuthSection oauthStatus={oauthStatus} onRefresh={loadState} />
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
+        <StatCard label="Gespeicherte Clips" value={String(clipCount)} />
+        <StatCard label="Plattform" value={platform} />
+        <StatCard label="AI Status" value={oauthConnected ? "Aktiv" : "Inaktiv"} color={oauthConnected ? "#22c55e" : "#5c5c75"} />
+        <StatCard label="Cloud Sync" value={authState.loggedIn ? (syncConnected ? "Verbunden" : "Getrennt") : "—"} color={syncConnected ? "#22c55e" : "#5c5c75"} />
+      </div>
+
+      {/* === SECTION 2: Cloud Sync (Optional) === */}
+      <SyncSection
+        authState={authState}
+        syncConnected={syncConnected}
+        onLoginSuccess={loadState}
+        onLogout={handleLogout}
+      />
+    </div>
+  );
 }
 
-// --- Auth Form (Login / Register) ---
+// === Claude AI OAuth Section (Primary) ===
 
-function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () => void; oauthStatus: OAuthStatus; onOAuthRefresh: () => void }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+function OAuthSection({ oauthStatus, onRefresh }: { oauthStatus: OAuthStatus; onRefresh: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const api = (window as any).ghostclip;
+  const connected = oauthStatus.hasToken && !oauthStatus.expired;
+
+  async function handleConnect() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const result = await api?.oauthConnect?.();
+      if (result?.success) {
+        setMsg("Verbunden! AI ist jetzt aktiv.");
+        onRefresh();
+      } else {
+        setMsg(result?.error || "Verbindung fehlgeschlagen");
+      }
+    } catch (err: any) {
+      setMsg(err?.message || "Fehler");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{
+      padding: "24px", borderRadius: "16px", marginBottom: "20px",
+      background: connected
+        ? "linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.03))"
+        : "linear-gradient(135deg, rgba(66,99,235,0.1), rgba(124,58,237,0.06))",
+      border: `1px solid ${connected ? "rgba(34,197,94,0.2)" : "rgba(66,99,235,0.2)"}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+        <div style={{
+          width: "10px", height: "10px", borderRadius: "50%",
+          background: connected ? "#22c55e" : oauthStatus.expired ? "#f59e0b" : "#5c5c75",
+          boxShadow: connected ? "0 0 8px rgba(34,197,94,0.5)" : "none",
+        }} />
+        <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#e0e0e8", margin: 0 }}>
+          Claude AI
+        </h3>
+        {connected && (
+          <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: 600, marginLeft: "auto" }}>
+            Verbunden
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: "12px", color: "#8888a0", marginBottom: "16px", lineHeight: "1.5" }}>
+        {connected
+          ? "AI ist aktiv. Tags, Summaries, Chat und Reply-Vorschlaege funktionieren."
+          : oauthStatus.expired
+            ? "Dein Token ist abgelaufen. Klicke um dich neu zu verbinden."
+            : "Verbinde deinen Claude Account um AI-Features zu aktivieren. Dein eigener Token — keine API Keys noetig."}
+      </p>
+
+      {connected && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
+          <MiniRow label="Enrichment (Tags, Summary)" value="Claude Haiku 4.5" />
+          <MiniRow label="Chat, Replies, Vision" value="Claude Sonnet 4.6" />
+        </div>
+      )}
+
+      {msg && (
+        <p style={{
+          fontSize: "11px", marginBottom: "10px", textAlign: "center",
+          color: msg.includes("aktiv") || msg.includes("Verbunden") ? "#22c55e" : "#ef4444",
+        }}>
+          {msg}
+        </p>
+      )}
+
+      {!connected && (
+        <button
+          onClick={handleConnect}
+          disabled={busy}
+          style={{
+            padding: "12px 24px", borderRadius: "12px", border: "none",
+            background: busy ? "#3a3a52" : "linear-gradient(135deg, #4263eb, #7c3aed)",
+            color: "white", fontSize: "14px", fontWeight: 600, width: "100%",
+            cursor: busy ? "not-allowed" : "pointer",
+            transition: "all 0.2s",
+            boxShadow: busy ? "none" : "0 4px 16px rgba(66,99,235,0.3)",
+          }}
+        >
+          {busy ? "Browser oeffnet..." : oauthStatus.expired ? "Neu verbinden" : "Mit Claude verbinden"}
+        </button>
+      )}
+
+      {connected && (
+        <button
+          onClick={handleConnect}
+          style={{
+            padding: "8px 16px", borderRadius: "8px",
+            border: "1px solid rgba(255,255,255,0.08)", background: "transparent",
+            color: "#5c5c75", fontSize: "11px", cursor: "pointer",
+            transition: "all 0.2s", width: "100%",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "#8888a0"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "#5c5c75"; }}
+        >
+          Token erneuern
+        </button>
+      )}
+    </div>
+  );
+}
+
+// === Cloud Sync Section (Optional) ===
+
+function SyncSection({
+  authState,
+  syncConnected,
+  onLoginSuccess,
+  onLogout,
+}: {
+  authState: AuthState;
+  syncConnected: boolean;
+  onLoginSuccess: () => void;
+  onLogout: () => void;
+}) {
+  const [expanded, setExpanded] = useState(authState.loggedIn);
+  const [mode, setMode] = useState<"login" | "register">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -69,27 +226,7 @@ function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () =>
   const [showServer, setShowServer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(false);
-  const [oauthMsg, setOauthMsg] = useState<string | null>(null);
   const api = (window as any).ghostclip;
-
-  async function handleOAuth() {
-    setOauthBusy(true);
-    setOauthMsg(null);
-    try {
-      const result = await api?.oauthConnect?.();
-      if (result?.success) {
-        setOauthMsg("Verbunden! AI ist jetzt aktiv.");
-        onOAuthRefresh();
-      } else {
-        setOauthMsg(result?.error || "Verbindung fehlgeschlagen");
-      }
-    } catch (err: any) {
-      setOauthMsg(err?.message || "Fehler");
-    } finally {
-      setOauthBusy(false);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +249,7 @@ function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () =>
       } else {
         await api?.authLogin?.(email, password, serverUrl);
       }
-      onSuccess();
+      onLoginSuccess();
     } catch (err: any) {
       const msg = err?.message || "Unbekannter Fehler";
       if (msg.includes("EMAIL_EXISTS") || msg.includes("already registered")) {
@@ -120,7 +257,7 @@ function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () =>
       } else if (msg.includes("INVALID_CREDENTIALS") || msg.includes("Invalid credentials")) {
         setError("E-Mail oder Passwort falsch");
       } else if (msg.includes("fetch") || msg.includes("ECONNREFUSED")) {
-        setError("Server nicht erreichbar — pruefe die Server-URL");
+        setError("Server nicht erreichbar");
       } else {
         setError(msg);
       }
@@ -129,323 +266,193 @@ function AuthForm({ onSuccess, oauthStatus, onOAuthRefresh }: { onSuccess: () =>
     }
   }
 
-  return (
-    <div style={{ maxWidth: "420px", margin: "0 auto" }}>
-      {/* Logo / Header */}
-      <div style={{ textAlign: "center", marginBottom: "32px" }}>
-        <div style={{
-          width: "72px", height: "72px", borderRadius: "18px", margin: "0 auto 16px",
-          background: "linear-gradient(135deg, #4263eb, #7c3aed)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "32px", color: "white", fontWeight: 700,
-          boxShadow: "0 8px 32px rgba(66,99,235,0.3)",
-        }}>G</div>
-        <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#e0e0e8" }}>
-          {mode === "login" ? "Willkommen zurueck" : "Account erstellen"}
-        </h2>
-        <p style={{ fontSize: "13px", color: "#5c5c75", marginTop: "6px" }}>
-          {mode === "login"
-            ? "Melde dich an um deine Clips zu synchronisieren"
-            : "Erstelle einen Account fuer Cloud Sync & Multi-Device"}
-        </p>
-      </div>
+  // Logged in: show sync info
+  if (authState.loggedIn) {
+    const memberSince = authState.user?.createdAt
+      ? new Date(authState.user.createdAt).toLocaleDateString("de-DE", { year: "numeric", month: "long", day: "numeric" })
+      : "—";
 
-      {/* Form */}
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          <InputField
-            label="E-Mail"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            placeholder="name@example.com"
-            required
-            autoFocus
-          />
-          <InputField
-            label="Passwort"
-            type="password"
-            value={password}
-            onChange={setPassword}
-            placeholder={mode === "register" ? "Mind. 8 Zeichen" : "Dein Passwort"}
-            required
-          />
-          {mode === "register" && (
-            <InputField
-              label="Passwort bestaetigen"
-              type="password"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              placeholder="Passwort wiederholen"
-              required
-            />
-          )}
-
-          {/* Custom server toggle */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowServer(!showServer)}
-              style={{
-                background: "none", border: "none", color: "#5c5c75",
-                fontSize: "11px", cursor: "pointer", padding: "4px 0",
-                textDecoration: "underline", textUnderlineOffset: "3px",
-              }}
-            >
-              {showServer ? "Standard-Server verwenden" : "Eigenen Server verwenden"}
-            </button>
-            {showServer && (
-              <InputField
-                label="Server URL"
-                type="url"
-                value={server}
-                onChange={setServer}
-                placeholder="https://api.ghostclip.app"
-              />
-            )}
-          </div>
-
-          {error && (
-            <div style={{
-              padding: "10px 14px", borderRadius: "10px",
-              background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
-              color: "#ef4444", fontSize: "12px",
-            }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={busy}
-            style={{
-              padding: "12px 20px", borderRadius: "12px", border: "none",
-              background: busy ? "#3a3a52" : "linear-gradient(135deg, #4263eb, #7c3aed)",
-              color: "white", fontSize: "14px", fontWeight: 600,
-              cursor: busy ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-              boxShadow: busy ? "none" : "0 4px 16px rgba(66,99,235,0.3)",
-              marginTop: "4px",
-            }}
-          >
-            {busy
-              ? "Bitte warten..."
-              : mode === "login"
-                ? "Anmelden"
-                : "Account erstellen"}
-          </button>
+    return (
+      <div style={{
+        padding: "20px", borderRadius: "16px",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <div style={{
+            width: "10px", height: "10px", borderRadius: "50%",
+            background: syncConnected ? "#22c55e" : "#ef4444",
+            boxShadow: syncConnected ? "0 0 8px rgba(34,197,94,0.5)" : "none",
+          }} />
+          <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#e0e0e8", margin: 0 }}>
+            Cloud Sync
+          </h3>
+          <span style={{
+            fontSize: "11px", fontWeight: 600, marginLeft: "auto",
+            color: syncConnected ? "#22c55e" : "#ef4444",
+          }}>
+            {syncConnected ? "Verbunden" : "Getrennt"}
+          </span>
         </div>
-      </form>
 
-      {/* Toggle mode */}
-      <div style={{ textAlign: "center", marginTop: "20px" }}>
-        <span style={{ fontSize: "12px", color: "#5c5c75" }}>
-          {mode === "login" ? "Noch keinen Account? " : "Schon registriert? "}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
+          <MiniRow label="Account" value={authState.user?.email || "—"} />
+          <MiniRow label="Mitglied seit" value={memberSince} />
+          {authState.device && (
+            <MiniRow label="Geraet" value={`${authState.device.name} (${authState.device.platform})`} />
+          )}
+        </div>
+
         <button
-          onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
+          onClick={onLogout}
           style={{
-            background: "none", border: "none", color: "#4263eb",
-            fontSize: "12px", cursor: "pointer", fontWeight: 600,
-            textDecoration: "underline", textUnderlineOffset: "3px",
+            padding: "8px 16px", borderRadius: "8px",
+            border: "1px solid rgba(239,68,68,0.15)", background: "transparent",
+            color: "#ef4444", fontSize: "11px", cursor: "pointer",
+            transition: "all 0.2s", width: "100%",
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
-          {mode === "login" ? "Registrieren" : "Anmelden"}
+          Sync abmelden
         </button>
       </div>
+    );
+  }
 
-      {/* Claude AI OAuth */}
-      <div style={{
-        textAlign: "center", marginTop: "24px", padding: "18px",
-        borderRadius: "12px",
-        background: oauthStatus.hasToken && !oauthStatus.expired
-          ? "rgba(34,197,94,0.06)"
-          : "rgba(66,99,235,0.06)",
-        border: `1px solid ${oauthStatus.hasToken && !oauthStatus.expired
-          ? "rgba(34,197,94,0.15)"
-          : "rgba(66,99,235,0.15)"}`,
-      }}>
-        <p style={{ fontSize: "13px", fontWeight: 600, color: "#e0e0e8", marginBottom: "6px" }}>
-          Claude AI (lokal)
-        </p>
-        <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px" }}>
-          {oauthStatus.hasToken && !oauthStatus.expired
-            ? "AI ist aktiv — Tags, Summaries und Chat funktionieren."
-            : oauthStatus.expired
-              ? "OAuth Token abgelaufen — klicke um neu zu verbinden."
-              : "Verbinde mit deinem Claude Account fuer AI-Features ohne Server."}
-        </p>
-        {oauthMsg && (
-          <p style={{
-            fontSize: "11px", marginBottom: "8px",
-            color: oauthMsg.includes("aktiv") || oauthMsg.includes("Verbunden") ? "#22c55e" : "#ef4444",
-          }}>
-            {oauthMsg}
-          </p>
-        )}
-        <button
-          onClick={handleOAuth}
-          disabled={oauthBusy || (oauthStatus.hasToken && !oauthStatus.expired)}
-          style={{
-            padding: "8px 20px", borderRadius: "8px", border: "none",
-            background: oauthStatus.hasToken && !oauthStatus.expired
-              ? "#2a2a3e"
-              : oauthBusy ? "#3a3a52" : "#4263eb",
-            color: oauthStatus.hasToken && !oauthStatus.expired ? "#5c5c75" : "white",
-            fontSize: "12px", fontWeight: 600,
-            cursor: oauthBusy || (oauthStatus.hasToken && !oauthStatus.expired) ? "not-allowed" : "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          {oauthBusy
-            ? "Browser oeffnet..."
-            : oauthStatus.hasToken && !oauthStatus.expired
-              ? "Verbunden"
-              : oauthStatus.expired
-                ? "Neu verbinden"
-                : "Mit Claude verbinden"}
-        </button>
-      </div>
-
-      {/* Local mode hint */}
-      <div style={{
-        textAlign: "center", marginTop: "12px", padding: "14px",
-        borderRadius: "10px", background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.05)",
-      }}>
-        <p style={{ fontSize: "11px", color: "#5c5c75" }}>
-          GhostClip funktioniert auch komplett ohne Account.
-          <br />
-          Cloud Sync ist optional — alle Daten bleiben lokal verschluesselt.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// --- Account Info (logged in) ---
-
-function AccountInfo({
-  authState,
-  clipCount,
-  syncConnected,
-  oauthStatus,
-  onLogout,
-  onOAuthRefresh,
-}: {
-  authState: AuthState;
-  clipCount: number;
-  syncConnected: boolean;
-  oauthStatus: OAuthStatus;
-  onLogout: () => void;
-  onOAuthRefresh: () => void;
-}) {
-  const hostname = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  const platform = hostname.includes("Linux") ? "Linux" : hostname.includes("Mac") ? "macOS" : "Windows";
-  const memberSince = authState.user?.createdAt
-    ? new Date(authState.user.createdAt).toLocaleDateString("de-DE", { year: "numeric", month: "long", day: "numeric" })
-    : "—";
-
+  // Not logged in: collapsible sync section
   return (
-    <div style={{ maxWidth: "600px" }}>
-      {/* Profile */}
-      <div style={{
-        padding: "24px", borderRadius: "16px", marginBottom: "24px",
-        background: "linear-gradient(135deg, rgba(66,99,235,0.08), rgba(168,85,247,0.05))",
-        border: "1px solid rgba(92,124,250,0.15)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{
-            width: "56px", height: "56px", borderRadius: "14px",
-            background: "linear-gradient(135deg, #4263eb, #7c3aed)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "24px", color: "white", fontWeight: 700,
-          }}>
-            {authState.user?.email?.[0]?.toUpperCase() || "G"}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#e0e0e8" }}>
-              {authState.user?.email}
-            </h2>
-            <p style={{ fontSize: "12px", color: "#5c5c75", marginTop: "2px" }}>
-              Mitglied seit {memberSince}
-            </p>
-          </div>
-          <div style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            padding: "4px 10px", borderRadius: "8px",
-            background: syncConnected ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)",
-          }}>
-            <div style={{
-              width: "6px", height: "6px", borderRadius: "50%",
-              background: syncConnected ? "#22c55e" : "#ef4444",
-            }} />
-            <span style={{
-              fontSize: "11px", fontWeight: 600,
-              color: syncConnected ? "#22c55e" : "#ef4444",
-            }}>
-              {syncConnected ? "Sync aktiv" : "Offline"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <h3 style={sectionTitle}>Uebersicht</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "24px" }}>
-        <StatCard label="Gespeicherte Clips" value={String(clipCount)} />
-        <StatCard label="Plattform" value={platform} />
-        <StatCard label="Cloud Sync" value={syncConnected ? "Verbunden" : "Getrennt"} color={syncConnected ? "#22c55e" : "#ef4444"} />
-        <StatCard label="Plan" value={authState.user?.plan === "free" ? "Free" : authState.user?.plan || "Free"} color="#4263eb" />
-      </div>
-
-      {/* Device */}
-      {authState.device && (
-        <>
-          <h3 style={sectionTitle}>Dieses Geraet</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "24px" }}>
-            <InfoRow label="Geraet" value={authState.device.name} />
-            <InfoRow label="Plattform" value={authState.device.platform} />
-            <InfoRow label="ID" value={authState.device.id.slice(0, 8) + "..."} />
-          </div>
-        </>
-      )}
-
-      {/* AI */}
-      <h3 style={sectionTitle}>AI Integration</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-        <InfoRow label="Enrichment" value="Claude Haiku 4.5" />
-        <InfoRow label="Chat & Replies" value="Claude Sonnet 4.6" />
-        <InfoRow
-          label="Claude OAuth"
-          value={oauthStatus.hasToken && !oauthStatus.expired ? "Verbunden" : oauthStatus.expired ? "Abgelaufen" : "Nicht verbunden"}
-        />
-      </div>
-      <OAuthButton oauthStatus={oauthStatus} onRefresh={onOAuthRefresh} />
-
-      {/* Logout */}
+    <div style={{
+      borderRadius: "16px",
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      overflow: "hidden",
+    }}>
       <button
-        onClick={onLogout}
+        onClick={() => setExpanded(!expanded)}
         style={{
-          padding: "12px 24px", borderRadius: "12px", border: "1px solid rgba(239,68,68,0.2)",
-          background: "rgba(239,68,68,0.08)", color: "#ef4444",
-          fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          transition: "all 0.2s", width: "100%",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "rgba(239,68,68,0.15)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "rgba(239,68,68,0.08)";
+          width: "100%", padding: "16px 20px",
+          background: "transparent", border: "none",
+          color: "#8888a0", fontSize: "13px", fontWeight: 600,
+          cursor: "pointer", textAlign: "left",
+          display: "flex", alignItems: "center", gap: "10px",
         }}
       >
-        Abmelden
+        <span style={{
+          fontSize: "10px", transition: "transform 0.2s",
+          transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+          display: "inline-block",
+        }}>
+          &#9654;
+        </span>
+        Cloud Sync (optional)
+        <span style={{ fontSize: "11px", fontWeight: 400, color: "#5c5c75", marginLeft: "auto" }}>
+          Clips ueber mehrere Geraete synchronisieren
+        </span>
       </button>
+
+      {expanded && (
+        <div style={{ padding: "0 20px 20px" }}>
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <InputField
+                label="E-Mail"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder="name@example.com"
+                required
+              />
+              <InputField
+                label="Passwort"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder={mode === "register" ? "Mind. 8 Zeichen" : "Dein Passwort"}
+                required
+              />
+              {mode === "register" && (
+                <InputField
+                  label="Passwort bestaetigen"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  placeholder="Passwort wiederholen"
+                  required
+                />
+              )}
+
+              {/* Custom server */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowServer(!showServer)}
+                  style={{
+                    background: "none", border: "none", color: "#5c5c75",
+                    fontSize: "11px", cursor: "pointer", padding: "2px 0",
+                    textDecoration: "underline", textUnderlineOffset: "3px",
+                  }}
+                >
+                  {showServer ? "Standard-Server" : "Eigenen Server"}
+                </button>
+                {showServer && (
+                  <InputField
+                    label="Server URL"
+                    type="url"
+                    value={server}
+                    onChange={setServer}
+                    placeholder="https://api.ghostclip.app"
+                  />
+                )}
+              </div>
+
+              {error && (
+                <div style={{
+                  padding: "8px 12px", borderRadius: "8px",
+                  background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                  color: "#ef4444", fontSize: "12px",
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  padding: "10px 20px", borderRadius: "10px", border: "none",
+                  background: busy ? "#3a3a52" : "#4263eb",
+                  color: "white", fontSize: "13px", fontWeight: 600,
+                  cursor: busy ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                {busy ? "..." : mode === "login" ? "Anmelden" : "Account erstellen"}
+              </button>
+            </div>
+          </form>
+
+          <div style={{ textAlign: "center", marginTop: "12px" }}>
+            <span style={{ fontSize: "11px", color: "#5c5c75" }}>
+              {mode === "login" ? "Noch keinen Account? " : "Schon registriert? "}
+            </span>
+            <button
+              onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}
+              style={{
+                background: "none", border: "none", color: "#4263eb",
+                fontSize: "11px", cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              {mode === "login" ? "Registrieren" : "Anmelden"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// --- Shared Components ---
+// === Shared Components ===
 
 function InputField({
   label, type, value, onChange, placeholder, required, autoFocus,
@@ -460,7 +467,7 @@ function InputField({
 }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "12px", color: "#8888a0", marginBottom: "6px", fontWeight: 500 }}>
+      <label style={{ display: "block", fontSize: "11px", color: "#8888a0", marginBottom: "4px", fontWeight: 500 }}>
         {label}
       </label>
       <input
@@ -471,7 +478,7 @@ function InputField({
         required={required}
         autoFocus={autoFocus}
         style={{
-          width: "100%", padding: "10px 14px", borderRadius: "10px",
+          width: "100%", padding: "9px 12px", borderRadius: "8px",
           background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
           color: "#e0e0e8", fontSize: "13px", outline: "none",
           transition: "border-color 0.2s",
@@ -483,11 +490,6 @@ function InputField({
     </div>
   );
 }
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: "14px", fontWeight: 600, color: "#8888a0", marginBottom: "12px",
-  textTransform: "uppercase", letterSpacing: "0.05em",
-};
 
 function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -502,74 +504,15 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function OAuthButton({ oauthStatus, onRefresh }: { oauthStatus: OAuthStatus; onRefresh: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const api = (window as any).ghostclip;
-  const connected = oauthStatus.hasToken && !oauthStatus.expired;
-
-  async function handleClick() {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const result = await api?.oauthConnect?.();
-      if (result?.success) {
-        setMsg("Verbunden!");
-        onRefresh();
-      } else {
-        setMsg(result?.error || "Fehlgeschlagen");
-      }
-    } catch (err: any) {
-      setMsg(err?.message || "Fehler");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: "24px" }}>
-      {msg && (
-        <p style={{
-          fontSize: "11px", marginBottom: "8px", textAlign: "center",
-          color: msg === "Verbunden!" ? "#22c55e" : "#ef4444",
-        }}>
-          {msg}
-        </p>
-      )}
-      <button
-        onClick={handleClick}
-        disabled={busy || connected}
-        style={{
-          padding: "10px 20px", borderRadius: "10px", border: "none",
-          background: connected ? "rgba(34,197,94,0.1)" : busy ? "#3a3a52" : "#4263eb",
-          color: connected ? "#22c55e" : "white",
-          fontSize: "12px", fontWeight: 600, width: "100%",
-          cursor: busy || connected ? "not-allowed" : "pointer",
-          transition: "all 0.2s",
-        }}
-      >
-        {busy
-          ? "Browser oeffnet..."
-          : connected
-            ? "Claude AI verbunden"
-            : oauthStatus.expired
-              ? "Claude AI neu verbinden"
-              : "Mit Claude AI verbinden"}
-      </button>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
+function MiniRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      padding: "10px 16px", borderRadius: "10px",
-      background: "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))",
-      border: "1px solid rgba(255,255,255,0.04)",
+      padding: "8px 12px", borderRadius: "8px",
+      background: "rgba(255,255,255,0.03)",
       display: "flex", justifyContent: "space-between", alignItems: "center",
     }}>
-      <span style={{ fontSize: "12px", color: "#8888a0" }}>{label}</span>
-      <span style={{ fontSize: "12px", color: "#c4c4d4", fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
+      <span style={{ fontSize: "11px", color: "#5c5c75" }}>{label}</span>
+      <span style={{ fontSize: "11px", color: "#c4c4d4", fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
     </div>
   );
 }
