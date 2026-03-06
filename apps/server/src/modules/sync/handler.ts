@@ -83,20 +83,33 @@ export function setupSyncHandlers(io: Server) {
     });
 
     // Offline queue flush - client sends batch of clips accumulated while offline
+    const ALLOWED_SYNC_EVENTS = new Set(["clip:new", "clip:update", "clip:delete"]);
+    const MAX_QUEUE_SIZE = 100;
+
     socket.on("sync:queue", async (data) => {
       try {
-        const { items } = data; // array of { type, payload, timestamp }
+        const { items } = data;
 
-        // Process in order (FIFO)
+        if (!Array.isArray(items) || items.length > MAX_QUEUE_SIZE) {
+          socket.emit("sync:error", { message: `Queue must be an array with max ${MAX_QUEUE_SIZE} items` });
+          return;
+        }
+
+        let processed = 0;
         for (const item of items) {
+          // Only allow whitelisted event types to prevent arbitrary event injection
+          if (!item?.type || !ALLOWED_SYNC_EVENTS.has(item.type)) continue;
+          if (!item.payload || typeof item.payload !== "object") continue;
+
           socket.to(`user:${userId}`).emit(item.type, {
             ...item.payload,
             deviceId,
-            timestamp: item.timestamp,
+            timestamp: item.timestamp || new Date().toISOString(),
           });
+          processed++;
         }
 
-        socket.emit("sync:queue:ack", { processed: items.length });
+        socket.emit("sync:queue:ack", { processed });
       } catch (error) {
         console.error("Sync queue error:", error);
         socket.emit("sync:error", { message: "Failed to process sync queue" });

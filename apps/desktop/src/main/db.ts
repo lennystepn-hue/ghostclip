@@ -149,6 +149,11 @@ export function getAllClips(limit = 500): any[] {
   return rows.map(rowToClip);
 }
 
+export function getClipCount(): number {
+  const row = db.prepare(`SELECT COUNT(*) as count FROM clips`).get() as { count: number };
+  return row.count;
+}
+
 export function deleteClipById(id: string) {
   db.prepare(`DELETE FROM clips WHERE id = ?`).run(id);
 }

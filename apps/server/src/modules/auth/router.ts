@@ -2,11 +2,11 @@ import { Router, type Router as RouterType } from "express";
 import { register, login, refreshAccessToken, logout } from "./service";
 import { registerSchema, loginSchema } from "@ghostclip/shared";
 import { authMiddleware, AuthRequest } from "../../middleware/auth";
-import { loginLimiter } from "../../middleware/rate-limit";
+import { loginLimiter, registerLimiter, refreshLimiter } from "../../middleware/rate-limit";
 
 const router: RouterType = Router();
 
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   try {
     const parsed = registerSchema.parse(req.body);
     const result = await register({
@@ -60,7 +60,7 @@ router.post("/login", loginLimiter, async (req, res) => {
   }
 });
 
-router.post("/refresh", async (req, res) => {
+router.post("/refresh", refreshLimiter, async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) return res.status(400).json({ error: "Refresh token required" });

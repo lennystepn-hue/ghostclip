@@ -36,7 +36,6 @@ export interface LoginInput {
 
 export async function register(input: RegisterInput) {
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
-  const authKeyHash = await bcrypt.hash(input.password, SALT_ROUNDS); // simplified for now
   const vaultKeyBuffer = Buffer.from(input.encryptedVaultKey, "base64");
 
   const client = await pool.connect();
@@ -46,9 +45,9 @@ export async function register(input: RegisterInput) {
     // Create user
     const userResult = await client.query(
       `INSERT INTO users (email, password_hash, auth_key_hash, encrypted_vault_key, plan)
-       VALUES ($1, $2, $3, $4, 'free')
+       VALUES ($1, $2, $2, $3, 'free')
        RETURNING id, email, plan, created_at`,
-      [input.email, passwordHash, authKeyHash, vaultKeyBuffer]
+      [input.email, passwordHash, vaultKeyBuffer]
     );
     const user = userResult.rows[0];
 

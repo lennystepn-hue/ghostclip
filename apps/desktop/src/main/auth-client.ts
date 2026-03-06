@@ -64,10 +64,23 @@ export function getAuthState(): AuthState {
 function getDeviceInfo() {
   const os = require("os");
   const crypto = require("crypto");
+
+  // Use stored keypair or generate a new X25519 keypair for device encryption
+  let publicKey = getSetting("device_public_key");
+  if (!publicKey) {
+    const { publicKey: pub, privateKey: priv } = crypto.generateKeyPairSync("x25519", {
+      publicKeyEncoding: { type: "spki", format: "der" },
+      privateKeyEncoding: { type: "pkcs8", format: "der" },
+    });
+    publicKey = pub.toString("base64");
+    setSetting("device_public_key", publicKey);
+    setSetting("device_private_key", priv.toString("base64"));
+  }
+
   return {
     deviceName: os.hostname(),
     platform: process.platform,
-    publicKey: crypto.randomBytes(32).toString("hex"), // placeholder
+    publicKey,
   };
 }
 

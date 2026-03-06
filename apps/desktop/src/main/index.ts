@@ -13,7 +13,7 @@ import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
-import { getOAuthToken, getOAuthStatus, startOAuthFlow, startAutoRefresh } from "./claude-oauth";
+import { getOAuthToken, getOAuthStatus, startOAuthFlow } from "./claude-oauth";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -23,6 +23,7 @@ import {
   updateClip,
   getAllClips,
   deleteClipById,
+  getClipCount,
   searchClips as dbSearchClips,
   getSetting,
   setSetting,
@@ -499,9 +500,6 @@ app.whenReady().then(() => {
     return true;
   });
 
-  // Start OAuth auto-refresh
-  startAutoRefresh();
-
   // --- Auto-Updater ---
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -739,7 +737,7 @@ app.whenReady().then(() => {
   ipcMain.handle("devices:list", () => {
     const hostname = require("os").hostname();
     const platform = process.platform === "linux" ? "linux" : process.platform === "darwin" ? "mac" : "windows";
-    const clipCount = (getAllClips(99999)).length;
+    const clipCount = getClipCount();
     return [{
       id: "local",
       name: hostname,
@@ -794,10 +792,20 @@ app.whenReady().then(() => {
   ipcMain.handle("settings:get", () => getAllSettings());
   ipcMain.handle("settings:update", (_e, key: string, value: string) => { setSetting(key, value); return true; });
 
-  // IPC: Open URL in default browser
+  // IPC: Open URL in default browser (only http/https allowed)
   ipcMain.handle("shell:openUrl", (_e, url: string) => {
-    shell.openExternal(url);
-    return true;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        console.warn(`Blocked shell:openUrl with disallowed protocol: ${parsed.protocol}`);
+        return false;
+      }
+      shell.openExternal(url);
+      return true;
+    } catch {
+      console.warn(`Blocked shell:openUrl with invalid URL: ${url}`);
+      return false;
+    }
   });
 
   // IPC: Fetch URL content (for manual re-fetch)

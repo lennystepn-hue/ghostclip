@@ -160,23 +160,5 @@ export function startOAuthFlow(): Promise<{ success: boolean; error?: string }> 
   });
 }
 
-// Auto-refresh: Claude CLI handles refresh internally when called,
-// but we can poll the credentials file to detect changes
-let autoRefreshTimer: NodeJS.Timeout | null = null;
-
-export function startAutoRefresh(): void {
-  stopAutoRefresh();
-  // Just poll the credentials file — if Claude CLI refreshes the token
-  // (e.g. via another session), we pick it up automatically
-  autoRefreshTimer = setInterval(() => {
-    // getOAuthToken() already reads fresh from disk each time
-    // Nothing to do here — the token is read on-demand
-  }, 5 * 60 * 1000);
-}
-
-export function stopAutoRefresh(): void {
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
-}
+// Auto-refresh is not needed — getOAuthToken() reads fresh from
+// Keychain/disk on every call. Claude CLI handles token refresh internally.
