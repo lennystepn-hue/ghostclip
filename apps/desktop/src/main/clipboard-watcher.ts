@@ -77,16 +77,21 @@ export class ClipboardWatcher {
     const text = clipboard.readText();
     const image = clipboard.readImage();
 
-    // Check for image first
-    if (!image.isEmpty() && !text) {
-      const base64 = image.toPNG().toString("base64");
-      return {
-        type: "image",
-        content: base64,
-        contentHash: createHash("sha256").update(image.toPNG()).digest("hex"),
-        timestamp: Date.now(),
-        sourceApp: null,
-      };
+    // Check for image first — prioritize image if it's substantial (>1KB)
+    // Many apps copy both image + text (e.g., Chrome, Slack), so check image size
+    if (!image.isEmpty()) {
+      const pngBuffer = image.toPNG();
+      const isSubstantialImage = pngBuffer.length > 1024; // more than 1KB = real image, not just an icon
+      if (isSubstantialImage) {
+        const base64 = pngBuffer.toString("base64");
+        return {
+          type: "image",
+          content: base64,
+          contentHash: createHash("sha256").update(pngBuffer).digest("hex"),
+          timestamp: Date.now(),
+          sourceApp: null,
+        };
+      }
     }
 
     // Check for text
