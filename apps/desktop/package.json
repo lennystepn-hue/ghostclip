@@ -1,6 +1,6 @@
 {
   "name": "@ghostclip/desktop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "AI-powered Clipboard Manager — smart tagging, vision OCR, encrypted sync",
   "author": {
@@ -50,7 +50,7 @@
       "executableName": "ghostclip"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": ["dmg", "zip"],
       "icon": "resources/icon.png",
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,

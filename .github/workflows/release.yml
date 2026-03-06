@@ -38,7 +38,7 @@ jobs:
       - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
       - name: Build & sign (no notarize)
-        run: cd apps/desktop && npx electron-builder --mac dmg --publish never
+        run: cd apps/desktop && npx electron-builder --mac dmg zip --publish never
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -61,6 +61,7 @@ jobs:
           name: mac
           path: |
             apps/desktop/release/GhostClip-*.dmg
+            apps/desktop/release/GhostClip-*.zip
             apps/desktop/release/latest-mac.yml
 
   build-windows:
