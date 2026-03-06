@@ -20,6 +20,7 @@ export function AccountView() {
   const [loading, setLoading] = useState(true);
   const [clipCount, setClipCount] = useState(0);
   const [syncConnected, setSyncConnected] = useState(false);
+  const [devices, setDevices] = useState<any[]>([]);
   const [aiStatus, setAiStatus] = useState<AiStatus>({ oauth: { hasToken: false, expired: false }, hasApiKey: false, apiKeyPreview: null, active: false });
   const api = (window as any).ghostclip;
 
@@ -30,16 +31,18 @@ export function AccountView() {
   async function loadState() {
     setLoading(true);
     try {
-      const [state, clips, sync, ai] = await Promise.all([
+      const [state, clips, sync, ai, devs] = await Promise.all([
         api?.authState?.(),
         api?.getClips?.(),
         api?.syncStatus?.(),
         api?.aiStatus?.(),
+        api?.getDevices?.(),
       ]);
       setAuthState(state || { loggedIn: false, user: null, device: null });
       setClipCount(clips?.length || 0);
       setSyncConnected(sync || false);
       setAiStatus(ai || { oauth: { hasToken: false, expired: false, hasCli: false }, hasApiKey: false, apiKeyPreview: null, hasOpenAiKey: false, openAiKeyPreview: null, active: false });
+      setDevices(devs || []);
     } catch {} finally {
       setLoading(false);
     }
@@ -96,6 +99,7 @@ export function AccountView() {
       <SyncSection
         authState={authState}
         syncConnected={syncConnected}
+        devices={devices}
         onLoginSuccess={loadState}
         onLogout={handleLogout}
       />
@@ -526,11 +530,13 @@ function OpenAiSection({ aiStatus, onRefresh }: { aiStatus: AiStatus; onRefresh:
 function SyncSection({
   authState,
   syncConnected,
+  devices,
   onLoginSuccess,
   onLogout,
 }: {
   authState: AuthState;
   syncConnected: boolean;
+  devices: any[];
   onLoginSuccess: () => void;
   onLogout: () => void;
 }) {
@@ -615,10 +621,45 @@ function SyncSection({
         <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
           <MiniRow label="Account" value={authState.user?.email || "—"} />
           <MiniRow label="Mitglied seit" value={memberSince} />
-          {authState.device && (
-            <MiniRow label="Geraet" value={`${authState.device.name} (${authState.device.platform})`} />
-          )}
         </div>
+
+        {/* Geräteliste */}
+        {devices.length > 0 && (
+          <div style={{ marginBottom: "16px" }}>
+            <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "8px", fontWeight: 600 }}>
+              Verbundene Geraete ({devices.length})
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {devices.map((d: any) => {
+                const icon = d.platform === "darwin" ? "🍎" : d.platform === "linux" ? "🐧" : "🪟";
+                const lastSync = d.last_sync ? new Date(d.last_sync).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+                return (
+                  <div key={d.id} style={{
+                    padding: "10px 12px", borderRadius: "10px",
+                    background: d.isCurrent ? "rgba(66,99,235,0.08)" : "rgba(255,255,255,0.03)",
+                    border: d.isCurrent ? "1px solid rgba(66,99,235,0.2)" : "1px solid rgba(255,255,255,0.05)",
+                    display: "flex", alignItems: "center", gap: "10px",
+                  }}>
+                    <span style={{ fontSize: "16px" }}>{icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: "12px", color: "#e0e0e8", fontWeight: 500 }}>
+                        {d.name}
+                      </span>
+                      {d.isCurrent && (
+                        <span style={{ fontSize: "10px", color: "#4263eb", marginLeft: "6px", fontWeight: 600 }}>
+                          (dieses Geraet)
+                        </span>
+                      )}
+                      <p style={{ fontSize: "10px", color: "#5c5c75", margin: "2px 0 0" }}>
+                        Letzter Sync: {lastSync}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={onLogout}

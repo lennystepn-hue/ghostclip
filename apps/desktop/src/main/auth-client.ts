@@ -202,6 +202,17 @@ export async function refreshToken(): Promise<boolean> {
   }
 }
 
+export async function getDevices(): Promise<any[]> {
+  const token = getSetting("auth_access_token");
+  if (!token) return [];
+  try {
+    const result = await apiRequest("/api/auth/devices", { token });
+    return result.devices || [];
+  } catch {
+    return [];
+  }
+}
+
 // Auto-refresh token every 10 minutes
 let refreshInterval: NodeJS.Timeout | null = null;
 

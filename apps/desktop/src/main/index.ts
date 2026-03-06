@@ -12,7 +12,7 @@ import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnect
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
-import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
+import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh, getDevices } from "./auth-client";
 import { getOAuthToken, getOAuthStatus, startOAuthFlow } from "./claude-oauth";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "node:fs";
@@ -51,7 +51,7 @@ import {
   getUsedReplyStyles,
 } from "./db";
 
-// Note: Do NOT use --no-sandbox globally — it disables Chromium's security layer.
+// no-sandbox must be set via CLI flag or electron-flags.conf for root users
 
 // Prevent crash on EPIPE/broken pipe errors
 process.on("uncaughtException", (err) => {
@@ -733,20 +733,20 @@ app.whenReady().then(() => {
   ipcMain.handle("chat:history", () => getChatMessages(200));
   ipcMain.handle("chat:clear", () => { clearChatHistory(); return true; });
 
-  // IPC: Device info (local device)
-  ipcMain.handle("devices:list", () => {
+  // IPC: Device list (from server if logged in, else local only)
+  ipcMain.handle("devices:list", async () => {
+    const auth = getAuthState();
+    if (auth.loggedIn) {
+      const devices = await getDevices();
+      const currentDeviceId = auth.device?.id;
+      return devices.map((d: any) => ({
+        ...d,
+        isCurrent: d.id === currentDeviceId,
+      }));
+    }
     const hostname = require("os").hostname();
     const platform = process.platform === "linux" ? "linux" : process.platform === "darwin" ? "mac" : "windows";
-    const clipCount = getClipCount();
-    return [{
-      id: "local",
-      name: hostname,
-      platform,
-      isOnline: true,
-      lastSync: new Date().toISOString(),
-      clipCount,
-      isCurrent: true,
-    }];
+    return [{ id: "local", name: hostname, platform, isCurrent: true }];
   });
 
   // IPC: Vision/OCR (local OAuth/API key or server proxy)

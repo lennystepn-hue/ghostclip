@@ -3,6 +3,7 @@ import { register, login, refreshAccessToken, logout } from "./service";
 import { registerSchema, loginSchema } from "@ghostclip/shared";
 import { authMiddleware, AuthRequest } from "../../middleware/auth";
 import { loginLimiter, registerLimiter, refreshLimiter } from "../../middleware/rate-limit";
+import { pool } from "../../database/connection";
 
 const router: RouterType = Router();
 
@@ -71,6 +72,19 @@ router.post("/refresh", refreshLimiter, async (req, res) => {
       return res.status(401).json({ error: "Invalid refresh token" });
     }
     console.error("Refresh error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/devices", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, platform, last_sync, created_at FROM devices WHERE user_id = $1 ORDER BY last_sync DESC NULLS LAST",
+      [req.userId]
+    );
+    res.json({ devices: result.rows });
+  } catch (error) {
+    console.error("Devices error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
