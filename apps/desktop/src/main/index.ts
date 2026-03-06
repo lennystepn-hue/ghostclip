@@ -13,7 +13,7 @@ import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
-import { getOAuthToken, getOAuthStatus, startOAuthFlow, refreshOAuthToken, startAutoRefresh } from "./claude-oauth";
+import { getOAuthToken, getOAuthStatus, startOAuthFlow, startAutoRefresh } from "./claude-oauth";
 import { autoUpdater } from "electron-updater";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -475,9 +475,6 @@ app.whenReady().then(() => {
   ipcMain.handle("oauth:status", () => getOAuthStatus());
   ipcMain.handle("oauth:connect", async () => {
     return startOAuthFlow();
-  });
-  ipcMain.handle("oauth:refresh", async () => {
-    return refreshOAuthToken();
   });
   ipcMain.handle("ai:setApiKey", (_e, key: string) => {
     setSetting("anthropic_api_key", key.trim());

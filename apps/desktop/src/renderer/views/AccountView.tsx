@@ -7,7 +7,7 @@ interface AuthState {
 }
 
 interface AiStatus {
-  oauth: { hasToken: boolean; expired: boolean };
+  oauth: { hasToken: boolean; expired: boolean; hasCli: boolean };
   hasApiKey: boolean;
   apiKeyPreview: string | null;
   active: boolean;
@@ -37,7 +37,7 @@ export function AccountView() {
       setAuthState(state || { loggedIn: false, user: null, device: null });
       setClipCount(clips?.length || 0);
       setSyncConnected(sync || false);
-      setAiStatus(ai || { oauth: { hasToken: false, expired: false }, hasApiKey: false, apiKeyPreview: null, active: false });
+      setAiStatus(ai || { oauth: { hasToken: false, expired: false, hasCli: false }, hasApiKey: false, apiKeyPreview: null, active: false });
     } catch {} finally {
       setLoading(false);
     }
@@ -230,23 +230,58 @@ function AiSection({ aiStatus, onRefresh }: { aiStatus: AiStatus; onRefresh: () 
       {/* OAuth mode */}
       {!aiStatus.active && mode === "oauth" && (
         <div>
-          <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px" }}>
-            Oeffnet deinen Browser — logge dich mit deinem Anthropic Account ein.
-          </p>
-          <button
-            onClick={handleOAuth}
-            disabled={oauthBusy}
-            style={{
-              padding: "12px 24px", borderRadius: "12px", border: "none",
-              background: oauthBusy ? "#3a3a52" : "linear-gradient(135deg, #4263eb, #7c3aed)",
-              color: "white", fontSize: "14px", fontWeight: 600, width: "100%",
-              cursor: oauthBusy ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-              boxShadow: oauthBusy ? "none" : "0 4px 16px rgba(66,99,235,0.3)",
-            }}
-          >
-            {oauthBusy ? "Browser oeffnet..." : "Mit Claude verbinden"}
-          </button>
+          {aiStatus.oauth.hasCli ? (
+            <>
+              <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px" }}>
+                Oeffnet deinen Browser — logge dich mit deinem Anthropic Account ein.
+                Nutzt Claude CLI fuer den sicheren Login.
+              </p>
+              <button
+                onClick={handleOAuth}
+                disabled={oauthBusy}
+                style={{
+                  padding: "12px 24px", borderRadius: "12px", border: "none",
+                  background: oauthBusy ? "#3a3a52" : "linear-gradient(135deg, #4263eb, #7c3aed)",
+                  color: "white", fontSize: "14px", fontWeight: 600, width: "100%",
+                  cursor: oauthBusy ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                  boxShadow: oauthBusy ? "none" : "0 4px 16px rgba(66,99,235,0.3)",
+                }}
+              >
+                {oauthBusy ? "Browser oeffnet — warte auf Login..." : "Mit Claude verbinden"}
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: "11px", color: "#f59e0b", marginBottom: "8px" }}>
+                Claude CLI nicht gefunden.
+              </p>
+              <p style={{ fontSize: "11px", color: "#5c5c75", marginBottom: "12px" }}>
+                Installiere Claude CLI fuer den einfachen Login, oder nutze einen API Key.
+              </p>
+              <button
+                onClick={() => api?.openUrl?.("https://docs.anthropic.com/en/docs/claude-code/overview")}
+                style={{
+                  padding: "10px 20px", borderRadius: "10px",
+                  border: "1px solid rgba(66,99,235,0.3)", background: "transparent",
+                  color: "#4263eb", fontSize: "12px", fontWeight: 600, width: "100%",
+                  cursor: "pointer", marginBottom: "8px",
+                }}
+              >
+                Claude CLI installieren
+              </button>
+              <button
+                onClick={() => setMode("apikey")}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px",
+                  border: "none", background: "transparent",
+                  color: "#5c5c75", fontSize: "11px", cursor: "pointer", width: "100%",
+                }}
+              >
+                Oder API Key verwenden →
+              </button>
+            </>
+          )}
         </div>
       )}
 

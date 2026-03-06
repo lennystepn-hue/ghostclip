@@ -1,26 +1,10 @@
-import { shell, BrowserWindow } from "electron";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { createServer } from "node:http";
-import { randomBytes, createHash } from "node:crypto";
-
-const CLAUDE_AUTH_URL = "https://console.anthropic.com/oauth/authorize";
-const CLAUDE_TOKEN_URL = "https://console.anthropic.com/oauth/token";
-const CLIENT_ID = "ghostclip-desktop";
-const REDIRECT_PORT = 19284;
-const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
+import { execFile, exec } from "node:child_process";
 
 function getCredsPath(): string {
   const home = process.env.USERPROFILE || process.env.HOME || "/root";
   return join(home, ".claude", ".credentials.json");
-}
-
-function ensureClaudeDir(): void {
-  const home = process.env.USERPROFILE || process.env.HOME || "/root";
-  const dir = join(home, ".claude");
-  try {
-    mkdirSync(dir, { recursive: true });
-  } catch {}
 }
 
 export function getOAuthToken(): string | null {
@@ -36,182 +20,127 @@ export function getOAuthToken(): string | null {
   }
 }
 
-export function getOAuthStatus(): { hasToken: boolean; expired: boolean } {
+export function getOAuthStatus(): { hasToken: boolean; expired: boolean; hasCli: boolean } {
+  const hasCli = isCliInstalled();
   try {
     const creds = JSON.parse(readFileSync(getCredsPath(), "utf-8"));
     const oauth = creds.claudeAiOauth;
-    if (!oauth?.accessToken) return { hasToken: false, expired: false };
-    if (oauth.expiresAt <= Date.now()) return { hasToken: true, expired: true };
-    return { hasToken: true, expired: false };
+    if (!oauth?.accessToken) return { hasToken: false, expired: false, hasCli };
+    if (oauth.expiresAt <= Date.now()) return { hasToken: true, expired: true, hasCli };
+    return { hasToken: true, expired: false, hasCli };
   } catch {
-    return { hasToken: false, expired: false };
+    return { hasToken: false, expired: false, hasCli };
   }
 }
 
-function generatePKCE(): { verifier: string; challenge: string } {
-  const verifier = randomBytes(32)
-    .toString("base64url")
-    .replace(/[^a-zA-Z0-9\-._~]/g, "")
-    .slice(0, 128);
-  const challenge = createHash("sha256").update(verifier).digest("base64url");
-  return { verifier, challenge };
-}
+function isCliInstalled(): boolean {
+  // Check common locations
+  const paths = process.platform === "win32"
+    ? ["claude.exe", join(process.env.LOCALAPPDATA || "", "Programs", "claude", "claude.exe")]
+    : ["/usr/bin/claude", "/usr/local/bin/claude", join(process.env.HOME || "", ".npm-global", "bin", "claude")];
 
-function saveOAuthTokens(data: {
-  access_token: string;
-  refresh_token?: string;
-  expires_in: number;
-}): void {
-  ensureClaudeDir();
-  const credsPath = getCredsPath();
+  for (const p of paths) {
+    try {
+      if (existsSync(p)) return true;
+    } catch {}
+  }
 
-  let creds: any = {};
+  // Also try which/where
   try {
-    creds = JSON.parse(readFileSync(credsPath, "utf-8"));
-  } catch {}
-
-  creds.claudeAiOauth = {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token || creds.claudeAiOauth?.refreshToken,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  };
-
-  writeFileSync(credsPath, JSON.stringify(creds, null, 2), "utf-8");
-}
-
-export async function refreshOAuthToken(): Promise<boolean> {
-  try {
-    const creds = JSON.parse(readFileSync(getCredsPath(), "utf-8"));
-    const refreshToken = creds.claudeAiOauth?.refreshToken;
-    if (!refreshToken) return false;
-
-    const res = await fetch(CLAUDE_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        client_id: CLIENT_ID,
-        refresh_token: refreshToken,
-      }),
-    });
-
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    saveOAuthTokens(data);
+    const cmd = process.platform === "win32" ? "where claude" : "which claude";
+    require("child_process").execSync(cmd, { stdio: "ignore", timeout: 3000 });
     return true;
   } catch {
     return false;
   }
 }
 
+function findClaude(): string {
+  // Try PATH first
+  try {
+    const cmd = process.platform === "win32" ? "where claude" : "which claude";
+    const result = require("child_process").execSync(cmd, { encoding: "utf-8", timeout: 3000 }).trim();
+    if (result) return result.split("\n")[0].trim();
+  } catch {}
+
+  // Fallback to common locations
+  const paths = process.platform === "win32"
+    ? [join(process.env.LOCALAPPDATA || "", "Programs", "claude", "claude.exe")]
+    : ["/usr/bin/claude", "/usr/local/bin/claude"];
+
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+
+  return "claude"; // hope it's in PATH
+}
+
+/**
+ * Start OAuth flow via Claude CLI.
+ * Runs `claude auth login` which opens the browser for Anthropic OAuth.
+ * The CLI handles all the PKCE, callback, token exchange.
+ * Token gets saved to ~/.claude/.credentials.json which we read.
+ */
 export function startOAuthFlow(): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
-    const { verifier, challenge } = generatePKCE();
+    const claudePath = findClaude();
 
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      code_challenge: challenge,
-      code_challenge_method: "S256",
-      scope: "user:inference",
+    // Get token state before login
+    const beforeToken = getOAuthToken();
+
+    // Run claude auth login — this opens the browser
+    const child = exec(`"${claudePath}" auth login`, {
+      timeout: 5 * 60 * 1000, // 5 min timeout
+      env: { ...process.env },
     });
 
-    const authUrl = `${CLAUDE_AUTH_URL}?${params.toString()}`;
+    let stderr = "";
+    child.stderr?.on("data", (data: string) => {
+      stderr += data;
+    });
 
-    // Start local HTTP server to receive callback
-    const server = createServer(async (req, res) => {
-      if (!req.url?.startsWith("/callback")) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-
-      const url = new URL(req.url, `http://localhost:${REDIRECT_PORT}`);
-      const code = url.searchParams.get("code");
-      const error = url.searchParams.get("error");
-
-      if (error || !code) {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(`<html><body style="font-family:system-ui;text-align:center;padding:60px;background:#1a1a2e;color:#e0e0e8">
-          <h2>Authentication failed</h2>
-          <p style="color:#ef4444">${error || "No authorization code received"}</p>
-          <p style="color:#5c5c75">You can close this tab.</p>
-        </body></html>`);
-        server.close();
-        resolve({ success: false, error: error || "No code" });
-        return;
-      }
-
-      // Exchange code for tokens
-      try {
-        const tokenRes = await fetch(CLAUDE_TOKEN_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI,
-            code_verifier: verifier,
-          }),
-        });
-
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          throw new Error(`Token exchange failed: ${tokenRes.status} ${err}`);
-        }
-
-        const data = await tokenRes.json();
-        saveOAuthTokens(data);
-
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(`<html><body style="font-family:system-ui;text-align:center;padding:60px;background:#1a1a2e;color:#e0e0e8">
-          <h2 style="color:#22c55e">Connected!</h2>
-          <p>GhostClip is now connected to Claude AI.</p>
-          <p style="color:#5c5c75">You can close this tab.</p>
-        </body></html>`);
-        server.close();
+    child.on("close", (code) => {
+      // Check if token was updated
+      const afterToken = getOAuthToken();
+      if (afterToken && afterToken !== beforeToken) {
         resolve({ success: true });
-      } catch (err: any) {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(`<html><body style="font-family:system-ui;text-align:center;padding:60px;background:#1a1a2e;color:#e0e0e8">
-          <h2>Error</h2>
-          <p style="color:#ef4444">${err.message}</p>
-          <p style="color:#5c5c75">You can close this tab.</p>
-        </body></html>`);
-        server.close();
+      } else if (code === 0) {
+        // CLI exited OK — check again after a short delay (token write might be async)
+        setTimeout(() => {
+          const token = getOAuthToken();
+          if (token) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: "Login abgeschlossen, aber kein Token gefunden. Versuche es erneut." });
+          }
+        }, 1000);
+      } else {
+        resolve({ success: false, error: stderr.trim() || `Claude CLI exited with code ${code}` });
+      }
+    });
+
+    child.on("error", (err) => {
+      if ((err as any).code === "ENOENT") {
+        resolve({ success: false, error: "Claude CLI nicht gefunden. Installiere es mit: npm install -g @anthropic-ai/claude-cli" });
+      } else {
         resolve({ success: false, error: err.message });
       }
     });
-
-    server.listen(REDIRECT_PORT, "127.0.0.1", () => {
-      shell.openExternal(authUrl);
-    });
-
-    // Timeout after 5 minutes
-    setTimeout(() => {
-      server.close();
-      resolve({ success: false, error: "Timeout — no response within 5 minutes" });
-    }, 5 * 60 * 1000);
   });
 }
 
-// Auto-refresh: try to refresh token before it expires
+// Auto-refresh: Claude CLI handles refresh internally when called,
+// but we can poll the credentials file to detect changes
 let autoRefreshTimer: NodeJS.Timeout | null = null;
 
 export function startAutoRefresh(): void {
   stopAutoRefresh();
-  autoRefreshTimer = setInterval(async () => {
-    const status = getOAuthStatus();
-    if (status.hasToken && status.expired) {
-      const refreshed = await refreshOAuthToken();
-      if (refreshed) {
-        console.log("Claude OAuth token refreshed automatically");
-      }
-    }
-  }, 5 * 60 * 1000); // Check every 5 min
+  // Just poll the credentials file — if Claude CLI refreshes the token
+  // (e.g. via another session), we pick it up automatically
+  autoRefreshTimer = setInterval(() => {
+    // getOAuthToken() already reads fresh from disk each time
+    // Nothing to do here — the token is read on-demand
+  }, 5 * 60 * 1000);
 }
 
 export function stopAutoRefresh(): void {
