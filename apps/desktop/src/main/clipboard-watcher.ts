@@ -64,11 +64,16 @@ export class ClipboardWatcher {
     const text = clipboard.readText();
     const image = clipboard.readImage();
 
+    // Prioritize image hash if image is substantial (>1KB)
+    // Must match buildEntry() priority to avoid hash mismatch loops
+    if (!image.isEmpty()) {
+      const pngBuffer = image.toPNG();
+      if (pngBuffer.length > 1024) {
+        return createHash("sha256").update(pngBuffer).digest("hex");
+      }
+    }
     if (text) {
       return createHash("sha256").update(text).digest("hex");
-    }
-    if (!image.isEmpty()) {
-      return createHash("sha256").update(image.toPNG()).digest("hex");
     }
     return "";
   }

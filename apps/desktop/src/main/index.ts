@@ -278,14 +278,17 @@ app.whenReady().then(() => {
 
     // AI enrichment (async — update comes later)
     // Works with local OAuth (Claude Max) OR via server (for registered users)
+    console.log(`[Enrichment] type=${entry.type}, hasAi=${hasAiAccess(oauthToken)}, contentLen=${entry.content.length}`);
     if (hasAiAccess(oauthToken)) {
       try {
         let result: any;
 
         const creds = getAiCredentials();
         const hasLocalAi = !!(creds.oauthToken || creds.apiKey);
+        console.log(`[Enrichment] hasLocalAi=${hasLocalAi}, oauthToken=${!!creds.oauthToken}, apiKey=${!!creds.apiKey}`);
 
         if (entry.type === "image") {
+          console.log(`[Vision] Analyzing image (${Math.round(entry.content.length / 1024)}KB base64)...`);
           if (hasLocalAi) {
             // Local AI: direct API call
             const { analyzeImage } = await import("@ghostclip/ai-client");
