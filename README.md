@@ -12,7 +12,7 @@
 
 <br/>
 
-[![Version](https://img.shields.io/badge/version-0.1.0-5c7cfa?style=for-the-badge)](https://github.com/lennystepn-hue/ghostclip/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-5c7cfa?style=for-the-badge)](https://github.com/lennystepn-hue/ghostclip/releases)
 &nbsp;&nbsp;
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 &nbsp;&nbsp;
@@ -175,10 +175,10 @@ Download the latest release for your platform from **[GitHub Releases](https://g
 
 | Platform | File |
 |:---------|:-----|
-| **Linux** (AppImage) | `GhostClip-0.1.0-x86_64.AppImage` |
-| **Linux** (Debian/Ubuntu) | `GhostClip-0.1.0-amd64.deb` |
-| **macOS** | `GhostClip-0.1.0-x64.dmg` |
-| **Windows** | `GhostClip-0.1.0-x64.exe` |
+| **Linux** (AppImage) | `GhostClip-0.2.0-x86_64.AppImage` |
+| **Linux** (Debian/Ubuntu) | `GhostClip-0.2.0-amd64.deb` |
+| **macOS** | `GhostClip-0.2.0-x64.dmg` |
+| **Windows** | `GhostClip-0.2.0-x64.exe` |
 
 <details>
 <summary><strong>macOS: "App is damaged" fix</strong></summary>

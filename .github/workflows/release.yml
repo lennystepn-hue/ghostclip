@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install
+      - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
       - run: cd apps/desktop && npx electron-builder --linux AppImage deb --publish never
       - uses: actions/upload-artifact@v4
@@ -24,6 +25,7 @@ jobs:
           path: |
             apps/desktop/release/GhostClip-*.AppImage
             apps/desktop/release/GhostClip-*.deb
+            apps/desktop/release/latest-linux.yml
 
   build-mac:
     runs-on: macos-latest
@@ -33,12 +35,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install
+      - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
       - run: cd apps/desktop && npx electron-builder --mac dmg --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: mac
-          path: apps/desktop/release/GhostClip-*.dmg
+          path: |
+            apps/desktop/release/GhostClip-*.dmg
+            apps/desktop/release/latest-mac.yml
 
   build-windows:
     runs-on: windows-latest
@@ -48,12 +53,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install
+      - run: pnpm --filter @ghostclip/shared build && pnpm --filter @ghostclip/crypto build && pnpm --filter @ghostclip/ai-client build
       - run: cd apps/desktop && pnpm build
       - run: cd apps/desktop && npx electron-builder --win nsis --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: apps/desktop/release/GhostClip-*.exe
+          path: |
+            apps/desktop/release/GhostClip-*.exe
+            apps/desktop/release/latest.yml
 
   release:
     needs: [build-linux, build-mac, build-windows]
@@ -63,6 +71,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - run: ls -la dist/
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/**/*
