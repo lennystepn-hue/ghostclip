@@ -14,6 +14,7 @@ import { fetchUrlContent } from "./url-fetcher";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh } from "./auth-client";
 import { getOAuthToken, getOAuthStatus, startOAuthFlow, refreshOAuthToken, startAutoRefresh } from "./claude-oauth";
+import { autoUpdater } from "electron-updater";
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import {
@@ -450,6 +451,59 @@ app.whenReady().then(() => {
 
   // Start OAuth auto-refresh
   startAutoRefresh();
+
+  // --- Auto-Updater ---
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  let updateAvailable: { version: string } | null = null;
+
+  autoUpdater.on("update-available", (info) => {
+    updateAvailable = { version: info.version };
+    mainWindow?.webContents.send("update:available", { version: info.version });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    mainWindow?.webContents.send("update:not-available");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("update:progress", { percent: Math.round(progress.percent) });
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    mainWindow?.webContents.send("update:downloaded");
+  });
+
+  autoUpdater.on("error", (err) => {
+    mainWindow?.webContents.send("update:error", { message: err.message });
+  });
+
+  ipcMain.handle("update:check", async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return result?.updateInfo ? { available: true, version: result.updateInfo.version } : { available: false };
+    } catch (err: any) {
+      return { available: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("update:download", async () => {
+    await autoUpdater.downloadUpdate();
+    return true;
+  });
+
+  ipcMain.handle("update:install", () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+
+  ipcMain.handle("update:currentVersion", () => {
+    return app.getVersion();
+  });
+
+  // Check for updates 10s after launch, then every 6h
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 10_000);
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
 
   // Auto-refresh tokens if logged in
   const authState = getAuthState();

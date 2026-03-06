@@ -83,7 +83,10 @@ export function AccountView() {
         <StatCard label="Cloud Sync" value={authState.loggedIn ? (syncConnected ? "Verbunden" : "Getrennt") : "—"} color={syncConnected ? "#22c55e" : "#5c5c75"} />
       </div>
 
-      {/* === SECTION 2: Cloud Sync (Optional) === */}
+      {/* === SECTION 2: Updates === */}
+      <UpdateSection />
+
+      {/* === SECTION 3: Cloud Sync (Optional) === */}
       <SyncSection
         authState={authState}
         syncConnected={syncConnected}
@@ -447,6 +450,172 @@ function SyncSection({
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// === Update Section ===
+
+function UpdateSection() {
+  const [status, setStatus] = useState<"idle" | "checking" | "available" | "downloading" | "ready" | "up-to-date" | "error">("idle");
+  const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [currentVersion, setCurrentVersion] = useState<string>("...");
+  const [progress, setProgress] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const api = (window as any).ghostclip;
+
+  useEffect(() => {
+    api?.updateCurrentVersion?.().then((v: string) => setCurrentVersion(v || "0.1.0"));
+
+    const cleanups = [
+      api?.onUpdateAvailable?.((info: { version: string }) => {
+        setNewVersion(info.version);
+        setStatus("available");
+      }),
+      api?.onUpdateNotAvailable?.(() => {
+        setStatus("up-to-date");
+      }),
+      api?.onUpdateProgress?.((info: { percent: number }) => {
+        setProgress(info.percent);
+      }),
+      api?.onUpdateDownloaded?.(() => {
+        setStatus("ready");
+      }),
+      api?.onUpdateError?.((info: { message: string }) => {
+        setErrorMsg(info.message);
+        setStatus("error");
+      }),
+    ];
+    return () => cleanups.forEach((c) => c?.());
+  }, []);
+
+  async function handleCheck() {
+    setStatus("checking");
+    setErrorMsg(null);
+    const result = await api?.updateCheck?.();
+    if (result?.available) {
+      setNewVersion(result.version);
+      setStatus("available");
+    } else if (result?.error) {
+      setErrorMsg(result.error);
+      setStatus("error");
+    } else {
+      setStatus("up-to-date");
+    }
+  }
+
+  async function handleDownload() {
+    setStatus("downloading");
+    setProgress(0);
+    await api?.updateDownload?.();
+  }
+
+  function handleInstall() {
+    api?.updateInstall?.();
+  }
+
+  return (
+    <div style={{
+      padding: "16px 20px", borderRadius: "14px", marginBottom: "20px",
+      background: status === "available" || status === "ready"
+        ? "rgba(66,99,235,0.06)"
+        : "rgba(255,255,255,0.02)",
+      border: `1px solid ${status === "available" || status === "ready"
+        ? "rgba(66,99,235,0.15)"
+        : "rgba(255,255,255,0.05)"}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#e0e0e8" }}>
+            GhostClip v{currentVersion}
+          </span>
+          {status === "available" && newVersion && (
+            <span style={{ fontSize: "11px", color: "#4263eb", marginLeft: "10px", fontWeight: 600 }}>
+              v{newVersion} verfuegbar!
+            </span>
+          )}
+          {status === "up-to-date" && (
+            <span style={{ fontSize: "11px", color: "#22c55e", marginLeft: "10px" }}>
+              Aktuell
+            </span>
+          )}
+          {status === "downloading" && (
+            <span style={{ fontSize: "11px", color: "#f59e0b", marginLeft: "10px" }}>
+              {progress}%
+            </span>
+          )}
+          {status === "ready" && (
+            <span style={{ fontSize: "11px", color: "#22c55e", marginLeft: "10px", fontWeight: 600 }}>
+              Bereit zum Installieren
+            </span>
+          )}
+        </div>
+
+        {(status === "idle" || status === "up-to-date" || status === "error") && (
+          <button
+            onClick={handleCheck}
+            style={{
+              padding: "6px 14px", borderRadius: "8px",
+              border: "1px solid rgba(255,255,255,0.1)", background: "transparent",
+              color: "#8888a0", fontSize: "11px", fontWeight: 600,
+              cursor: "pointer", transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(66,99,235,0.4)"; e.currentTarget.style.color = "#e0e0e8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "#8888a0"; }}
+          >
+            Nach Updates suchen
+          </button>
+        )}
+
+        {status === "checking" && (
+          <span style={{ fontSize: "11px", color: "#5c5c75" }}>Pruefe...</span>
+        )}
+
+        {status === "available" && (
+          <button
+            onClick={handleDownload}
+            style={{
+              padding: "6px 14px", borderRadius: "8px", border: "none",
+              background: "#4263eb", color: "white",
+              fontSize: "11px", fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            Herunterladen
+          </button>
+        )}
+
+        {status === "downloading" && (
+          <div style={{
+            width: "80px", height: "6px", borderRadius: "3px",
+            background: "rgba(255,255,255,0.1)", overflow: "hidden",
+          }}>
+            <div style={{
+              width: `${progress}%`, height: "100%", borderRadius: "3px",
+              background: "#4263eb", transition: "width 0.3s",
+            }} />
+          </div>
+        )}
+
+        {status === "ready" && (
+          <button
+            onClick={handleInstall}
+            style={{
+              padding: "6px 14px", borderRadius: "8px", border: "none",
+              background: "linear-gradient(135deg, #4263eb, #7c3aed)", color: "white",
+              fontSize: "11px", fontWeight: 600, cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(66,99,235,0.3)",
+            }}
+          >
+            Jetzt installieren
+          </button>
+        )}
+      </div>
+
+      {errorMsg && (
+        <p style={{ fontSize: "11px", color: "#ef4444", marginTop: "8px" }}>
+          {errorMsg}
+        </p>
       )}
     </div>
   );

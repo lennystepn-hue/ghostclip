@@ -90,6 +90,32 @@ const api = {
   oauthConnect: () => ipcRenderer.invoke("oauth:connect"),
   oauthRefresh: () => ipcRenderer.invoke("oauth:refresh"),
 
+  // Updates
+  updateCheck: () => ipcRenderer.invoke("update:check"),
+  updateDownload: () => ipcRenderer.invoke("update:download"),
+  updateInstall: () => ipcRenderer.invoke("update:install"),
+  updateCurrentVersion: () => ipcRenderer.invoke("update:currentVersion"),
+  onUpdateAvailable: (callback: (info: { version: string }) => void) => {
+    ipcRenderer.on("update:available", (_e, info) => callback(info));
+    return () => ipcRenderer.removeAllListeners("update:available");
+  },
+  onUpdateNotAvailable: (callback: () => void) => {
+    ipcRenderer.on("update:not-available", () => callback());
+    return () => ipcRenderer.removeAllListeners("update:not-available");
+  },
+  onUpdateProgress: (callback: (info: { percent: number }) => void) => {
+    ipcRenderer.on("update:progress", (_e, info) => callback(info));
+    return () => ipcRenderer.removeAllListeners("update:progress");
+  },
+  onUpdateDownloaded: (callback: () => void) => {
+    ipcRenderer.on("update:downloaded", () => callback());
+    return () => ipcRenderer.removeAllListeners("update:downloaded");
+  },
+  onUpdateError: (callback: (info: { message: string }) => void) => {
+    ipcRenderer.on("update:error", (_e, info) => callback(info));
+    return () => ipcRenderer.removeAllListeners("update:error");
+  },
+
   // Sync
   syncStatus: () => ipcRenderer.invoke("sync:status"),
   connectSync: (token: string, server?: string) => ipcRenderer.invoke("sync:connect", token, server),
