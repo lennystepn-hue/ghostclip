@@ -681,7 +681,7 @@ function SyncSection({
                 <button type="button" onClick={() => setShowServer(!showServer)} style={{ background: "none", border: "none", color: "#5c5c75", fontSize: "11px", cursor: "pointer", padding: "2px 0", textDecoration: "underline", textUnderlineOffset: "3px" }}>
                   {showServer ? "Standard-Server" : "Eigenen Server"}
                 </button>
-                {showServer && <InputField label="Server URL" type="url" value={server} onChange={setServer} placeholder="https://api.ghostclip.app" />}
+                {showServer && <InputField label="Server URL" type="url" value={server} onChange={setServer} placeholder="https://api.ghost-clip.com" />}
               </div>
               {error && (
                 <div style={{ padding: "8px 12px", borderRadius: "8px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444", fontSize: "12px" }}>

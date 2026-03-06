@@ -196,23 +196,12 @@ Download the latest release for your platform from **[GitHub Releases](https://g
 
 | Platform | File |
 |:---------|:-----|
-| **Linux** (AppImage) | `GhostClip-0.2.0-x86_64.AppImage` |
-| **Linux** (Debian/Ubuntu) | `GhostClip-0.2.0-amd64.deb` |
-| **macOS** | `GhostClip-0.2.0-x64.dmg` |
-| **Windows** | `GhostClip-0.2.0-x64.exe` |
+| **Linux** (AppImage) | `GhostClip-x86_64.AppImage` |
+| **Linux** (Debian/Ubuntu) | `GhostClip-amd64.deb` |
+| **macOS** (Apple Silicon) | `GhostClip-arm64.dmg` |
+| **Windows** | `GhostClip-x64.exe` |
 
-<details>
-<summary><strong>macOS: "App is damaged" fix</strong></summary>
-
-macOS blocks unsigned apps by default. After downloading, run:
-
-```bash
-xattr -cr /Applications/GhostClip.app
-```
-
-Or right-click the app → Open → Open anyway.
-
-</details>
+The macOS build is code-signed and notarized — no "app is damaged" warnings.
 
 <br/>
 
