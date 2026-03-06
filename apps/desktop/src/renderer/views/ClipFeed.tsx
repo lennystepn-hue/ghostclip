@@ -541,8 +541,17 @@ function ClipItem({ clip, isExpanded, isNew, isCopied, onToggle, onCopy, onPin, 
             </div>
           )}
 
+          {/* AI Transform Buttons */}
+          {clip.type === "text" && clip.content && (
+            <TransformBar content={clip.content} />
+          )}
+
+          {/* Similar Clips */}
+          <SimilarClips clipId={clip.id} />
+
           {/* Meta row */}
-          <div style={{ display: "flex", gap: "16px", fontSize: "10px", color: "#4a4a60" }}>
+          <div style={{ display: "flex", gap: "16px", fontSize: "10px", color: "#4a4a60", flexWrap: "wrap" }}>
+            {clip.sourceApp && <span>App: <span style={{ color: "#6a6a80" }}>{clip.sourceApp}</span></span>}
             {clip.mood && <span>Mood: <span style={{ color: "#6a6a80" }}>{clip.mood}</span></span>}
             {clip.sensitivity && clip.sensitivity !== "low" && (
               <span style={{ color: clip.sensitivity === "critical" ? "#ef4444" : "#f97316" }}>
@@ -671,5 +680,148 @@ function AutoExpireTimer({ createdAt }: { createdAt: string }) {
     }}>
       ({remaining})
     </span>
+  );
+}
+
+// === AI Transform Bar ===
+
+const transformModes = [
+  { id: "shorter", label: "Kuerzer", icon: "✂" },
+  { id: "formal", label: "Formell", icon: "👔" },
+  { id: "casual", label: "Locker", icon: "😎" },
+  { id: "translate_en", label: "EN", icon: "🇬🇧" },
+  { id: "translate_de", label: "DE", icon: "🇩🇪" },
+  { id: "fix_grammar", label: "Korrektur", icon: "✓" },
+  { id: "summarize", label: "Zusammenfassen", icon: "📝" },
+  { id: "explain", label: "Erklaeren", icon: "💡" },
+];
+
+function TransformBar({ content }: { content: string }) {
+  const [loading, setLoading] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const transform = async (mode: string) => {
+    setLoading(mode);
+    setResult(null);
+    try {
+      const api = (window as any).ghostclip;
+      const text = await api?.aiTransform?.(content, mode);
+      setResult(text || "Keine Antwort");
+    } catch (err: any) {
+      setResult("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const copyResult = () => {
+    if (!result) return;
+    (window as any).ghostclip?.writeClipboard?.(result);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div style={{ marginBottom: "10px" }}>
+      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: result ? "8px" : 0 }}>
+        <span style={{ fontSize: "10px", color: "#5c5c75", lineHeight: "26px", marginRight: "4px" }}>AI:</span>
+        {transformModes.map(m => (
+          <button
+            key={m.id}
+            onClick={() => transform(m.id)}
+            disabled={!!loading}
+            style={{
+              padding: "3px 10px", borderRadius: "14px", fontSize: "10px",
+              border: "1px solid rgba(92,124,250,0.15)",
+              background: loading === m.id ? "rgba(66,99,235,0.2)" : "rgba(66,99,235,0.06)",
+              color: loading === m.id ? "#91a7ff" : "#748ffc",
+              cursor: loading ? "wait" : "pointer",
+              fontWeight: 500, transition: "all 0.15s",
+              opacity: loading && loading !== m.id ? 0.4 : 1,
+            }}
+          >
+            {loading === m.id ? "..." : `${m.icon} ${m.label}`}
+          </button>
+        ))}
+      </div>
+      {result && (
+        <div style={{
+          padding: "10px 14px", borderRadius: "10px",
+          background: "rgba(66,99,235,0.06)", border: "1px solid rgba(92,124,250,0.15)",
+          animation: "fadeIn 0.2s ease",
+        }}>
+          <pre style={{
+            fontSize: "12px", color: "#c4c4d4", lineHeight: 1.6, margin: 0,
+            whiteSpace: "pre-wrap", wordBreak: "break-word",
+            maxHeight: "150px", overflowY: "auto",
+          }}>{result}</pre>
+          <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+            <button onClick={copyResult} style={{
+              padding: "4px 12px", borderRadius: "8px", fontSize: "10px", fontWeight: 600,
+              background: copied ? "rgba(34,197,94,0.15)" : "rgba(66,99,235,0.15)",
+              border: "none", color: copied ? "#22c55e" : "#748ffc", cursor: "pointer",
+            }}>
+              {copied ? "Kopiert!" : "Kopieren"}
+            </button>
+            <button onClick={() => setResult(null)} style={{
+              padding: "4px 12px", borderRadius: "8px", fontSize: "10px",
+              background: "rgba(255,255,255,0.04)", border: "none", color: "#5c5c75", cursor: "pointer",
+            }}>
+              Schliessen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Similar Clips ===
+
+function SimilarClips({ clipId }: { clipId: string }) {
+  const [similar, setSimilar] = useState<any[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const loadSimilar = async () => {
+    if (loaded) { setSimilar(null); setLoaded(false); return; }
+    const api = (window as any).ghostclip;
+    const results = await api?.getSimilarClips?.(clipId);
+    setSimilar(results?.filter((c: any) => c.similarity > 0.7) || []);
+    setLoaded(true);
+  };
+
+  return (
+    <div style={{ marginBottom: "8px" }}>
+      <button onClick={loadSimilar} style={{
+        padding: "3px 10px", borderRadius: "14px", fontSize: "10px",
+        border: "1px solid rgba(168,85,247,0.15)",
+        background: loaded ? "rgba(168,85,247,0.12)" : "rgba(168,85,247,0.05)",
+        color: "#c084fc", cursor: "pointer", fontWeight: 500,
+      }}>
+        {loaded ? "Verbergen" : "Aehnliche Clips finden"}
+      </button>
+      {similar && similar.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "8px", animation: "fadeIn 0.2s ease" }}>
+          {similar.map((c: any) => (
+            <div key={c.id} style={{
+              padding: "8px 12px", borderRadius: "8px",
+              background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.1)",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span style={{ fontSize: "11px", color: "#c4c4d4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                {c.summary || c.content?.slice(0, 60)}
+              </span>
+              <span style={{ fontSize: "9px", color: "#8b5cf6", fontFamily: "'JetBrains Mono', monospace", marginLeft: "8px" }}>
+                {Math.round(c.similarity * 100)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {similar && similar.length === 0 && loaded && (
+        <span style={{ fontSize: "10px", color: "#4a4a60", marginLeft: "8px" }}>Keine aehnlichen Clips gefunden</span>
+      )}
+    </div>
   );
 }

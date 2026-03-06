@@ -97,6 +97,18 @@ export function initDb() {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT DEFAULT 'allgemein',
+      variables TEXT DEFAULT '[]',
+      use_count INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    )
+  `);
+
   return db;
 }
 
@@ -455,4 +467,68 @@ export function importClips(clips: any[]): number {
   });
   tx();
   return imported;
+}
+
+// Templates
+export function getTemplates(): any[] {
+  return (db.prepare("SELECT * FROM templates ORDER BY use_count DESC, created_at DESC").all() as any[]).map(r => ({
+    id: r.id, name: r.name, content: r.content, category: r.category,
+    variables: JSON.parse(r.variables || "[]"), useCount: r.use_count, createdAt: r.created_at,
+  }));
+}
+
+export function createTemplate(id: string, name: string, content: string, category: string) {
+  // Auto-detect variables like {name}, {thema}, etc.
+  const vars = [...content.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+  db.prepare("INSERT INTO templates (id, name, content, category, variables, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    id, name, content, category, JSON.stringify(vars), new Date().toISOString(),
+  );
+}
+
+export function deleteTemplate(id: string) {
+  db.prepare("DELETE FROM templates WHERE id = ?").run(id);
+}
+
+export function incrementTemplateUse(id: string) {
+  db.prepare("UPDATE templates SET use_count = use_count + 1 WHERE id = ?").run(id);
+}
+
+// Clipboard Rules
+export function getRules(): any[] {
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS clipboard_rules (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      condition_type TEXT NOT NULL,
+      condition_value TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      action_value TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL
+    )`);
+  } catch {}
+  return (db.prepare("SELECT * FROM clipboard_rules ORDER BY created_at DESC").all() as any[]).map(r => ({
+    id: r.id, name: r.name, conditionType: r.condition_type, conditionValue: r.condition_value,
+    actionType: r.action_type, actionValue: r.action_value, enabled: !!r.enabled, createdAt: r.created_at,
+  }));
+}
+
+export function createRule(id: string, name: string, conditionType: string, conditionValue: string, actionType: string, actionValue: string) {
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS clipboard_rules (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, condition_type TEXT NOT NULL, condition_value TEXT NOT NULL,
+      action_type TEXT NOT NULL, action_value TEXT NOT NULL, enabled INTEGER DEFAULT 1, created_at TEXT NOT NULL
+    )`);
+  } catch {}
+  db.prepare("INSERT INTO clipboard_rules (id, name, condition_type, condition_value, action_type, action_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    id, name, conditionType, conditionValue, actionType, actionValue, new Date().toISOString(),
+  );
+}
+
+export function deleteRule(id: string) {
+  db.prepare("DELETE FROM clipboard_rules WHERE id = ?").run(id);
+}
+
+export function toggleRule(id: string) {
+  db.prepare("UPDATE clipboard_rules SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END WHERE id = ?").run(id);
 }

@@ -45,6 +45,8 @@ const api = {
   },
   aiChat: (message: string) => ipcRenderer.invoke("ai:chat", message),
   aiVision: (base64Image: string) => ipcRenderer.invoke("ai:vision", base64Image),
+  aiTransform: (content: string, mode: string, customInstruction?: string) => ipcRenderer.invoke("ai:transform", content, mode, customInstruction),
+  getSimilarClips: (clipId: string) => ipcRenderer.invoke("clips:similar", clipId),
 
   // Chat history
   getChatHistory: () => ipcRenderer.invoke("chat:history"),
@@ -68,6 +70,18 @@ const api = {
   removeClipFromCollection: (collectionId: string, clipId: string) => ipcRenderer.invoke("collections:removeClip", collectionId, clipId),
   createSmartCollection: (name: string, icon: string, rule: object) => ipcRenderer.invoke("collections:createSmart", name, icon, rule),
   getSmartCollectionClips: (collectionId: string) => ipcRenderer.invoke("collections:smartClips", collectionId),
+
+  // Templates
+  getTemplates: () => ipcRenderer.invoke("templates:list"),
+  createTemplate: (name: string, content: string, category: string) => ipcRenderer.invoke("templates:create", name, content, category),
+  deleteTemplate: (id: string) => ipcRenderer.invoke("templates:delete", id),
+  useTemplate: (id: string, variables: Record<string, string>) => ipcRenderer.invoke("templates:use", id, variables),
+
+  // Clipboard Rules
+  getRules: () => ipcRenderer.invoke("rules:list"),
+  createRule: (name: string, condType: string, condValue: string, actType: string, actValue: string) => ipcRenderer.invoke("rules:create", name, condType, condValue, actType, actValue),
+  deleteRule: (id: string) => ipcRenderer.invoke("rules:delete", id),
+  toggleRule: (id: string) => ipcRenderer.invoke("rules:toggle", id),
 
   // Settings
   getSettings: () => ipcRenderer.invoke("settings:get"),

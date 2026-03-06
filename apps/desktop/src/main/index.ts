@@ -764,6 +764,50 @@ app.whenReady().then(() => {
     }
   });
 
+  // IPC: AI Transform/Rewrite
+  ipcMain.handle("ai:transform", async (_e, content: string, mode: string, customInstruction?: string) => {
+    const creds = getAiCredentials();
+    try {
+      if (creds.oauthToken || creds.apiKey) {
+        const { transformText } = await import("@ghostclip/ai-client");
+        return await transformText({ content, mode: mode as any, customInstruction, ...creds });
+      }
+      return await serverAiRequest("transform", { content, mode, customInstruction });
+    } catch (err: any) {
+      console.error("Transform failed:", err.message);
+      throw err;
+    }
+  });
+
+  // IPC: Find similar clips (by embedding cosine similarity)
+  ipcMain.handle("clips:similar", (_e, clipId: string) => {
+    const allClips = getAllClips(9999);
+    const target = allClips.find(c => c.id === clipId);
+    if (!target?.embedding) return [];
+    const targetEmb = typeof target.embedding === "string" ? JSON.parse(target.embedding) : target.embedding;
+    if (!targetEmb || !Array.isArray(targetEmb)) return [];
+
+    const scored = allClips
+      .filter(c => c.id !== clipId && c.embedding)
+      .map(c => {
+        const emb = typeof c.embedding === "string" ? JSON.parse(c.embedding) : c.embedding;
+        if (!emb || !Array.isArray(emb)) return null;
+        let dot = 0, magA = 0, magB = 0;
+        for (let i = 0; i < Math.min(targetEmb.length, emb.length); i++) {
+          dot += targetEmb[i] * emb[i];
+          magA += targetEmb[i] ** 2;
+          magB += emb[i] ** 2;
+        }
+        const similarity = dot / (Math.sqrt(magA) * Math.sqrt(magB) || 1);
+        return { ...c, similarity };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.similarity - a.similarity)
+      .slice(0, 5);
+
+    return scored;
+  });
+
   // IPC: Analytics
   ipcMain.handle("analytics:stats", () => getClipStats());
 
@@ -787,6 +831,57 @@ app.whenReady().then(() => {
     return { id, name, icon, smartRule: rule, clipIds: [], createdAt: new Date().toISOString() };
   });
   ipcMain.handle("collections:smartClips", (_e, collectionId: string) => getSmartCollectionClips(collectionId));
+
+  // IPC: Templates
+  ipcMain.handle("templates:list", () => {
+    const { getTemplates } = require("./db");
+    return getTemplates();
+  });
+  ipcMain.handle("templates:create", (_e, name: string, content: string, category: string) => {
+    const { createTemplate } = require("./db");
+    const id = crypto.randomUUID();
+    createTemplate(id, name, content, category);
+    return { id, name, content, category };
+  });
+  ipcMain.handle("templates:delete", (_e, id: string) => {
+    const { deleteTemplate } = require("./db");
+    deleteTemplate(id);
+    return true;
+  });
+  ipcMain.handle("templates:use", (_e, id: string, variables: Record<string, string>) => {
+    const { getTemplates, incrementTemplateUse } = require("./db");
+    const templates = getTemplates();
+    const tmpl = templates.find((t: any) => t.id === id);
+    if (!tmpl) return null;
+    let result = tmpl.content;
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value);
+    }
+    incrementTemplateUse(id);
+    return result;
+  });
+
+  // IPC: Clipboard Rules
+  ipcMain.handle("rules:list", () => {
+    const { getRules } = require("./db");
+    return getRules();
+  });
+  ipcMain.handle("rules:create", (_e, name: string, conditionType: string, conditionValue: string, actionType: string, actionValue: string) => {
+    const { createRule } = require("./db");
+    const id = crypto.randomUUID();
+    createRule(id, name, conditionType, conditionValue, actionType, actionValue);
+    return { id, name, conditionType, conditionValue, actionType, actionValue };
+  });
+  ipcMain.handle("rules:delete", (_e, id: string) => {
+    const { deleteRule } = require("./db");
+    deleteRule(id);
+    return true;
+  });
+  ipcMain.handle("rules:toggle", (_e, id: string) => {
+    const { toggleRule } = require("./db");
+    toggleRule(id);
+    return true;
+  });
 
   // IPC: Settings
   ipcMain.handle("settings:get", () => getAllSettings());
