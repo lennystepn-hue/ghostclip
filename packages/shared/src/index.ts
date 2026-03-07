@@ -2,3 +2,4 @@ export * from "./types";
 export * from "./constants";
 export * from "./validators";
 export * from "./content-detector";
+export * from "./quick-panel-utils";
