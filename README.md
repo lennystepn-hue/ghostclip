@@ -26,7 +26,7 @@
 
 <br/>
 
-[Features](#-features) &middot; [Screenshots](#-screenshots) &middot; [Quick Start](#-quick-start) &middot; [AI Features](#-ai-features) &middot; [Download](#-download) &middot; [Self-Hosting](#-self-hosting) &middot; [Architecture](#-architecture) &middot; [Contributing](#-contributing)
+[Features](#-features) &middot; [Screenshots](#-screenshots) &middot; [Quick Start](#-quick-start) &middot; [AI Features](#-ai-features) &middot; [Download](#-download) &middot; [Roadmap](#-roadmap) &middot; [Self-Hosting](#-self-hosting) &middot; [Architecture](#-architecture) &middot; [Contributing](#-contributing)
 
 <br/>
 </div>
@@ -466,6 +466,25 @@ Features:
 - Analytics and statistics
 - Device management
 - Account settings
+
+---
+
+## Roadmap
+
+We build in public. See what's shipped, what's next, and what's planned:
+
+**[View the full Roadmap on GitHub Projects &rarr;](https://github.com/users/lennystepn-hue/projects/3)**
+
+| Phase | Focus | Highlights |
+|-------|-------|------------|
+| **v0.5** ✅ | AI Core | Auto-enrichment, Vision/OCR, AI Chat, Transform, E2E Sync |
+| **v0.6** | Polish & Power | Templates, Rules Engine, Command Palette, Pin Board, Daily Digest |
+| **v0.7** | Intelligence | Work Context Detection, Clipboard Timeline, Predictive Paste, Knowledge Graph |
+| **v0.8** | Collaboration | Shared Collections, Clip Links, Voice Clips, Multi-Clip Merge |
+| **v0.9** | Platform | Browser Extension, Mobile App, REST API, Plugin System |
+| **v1.0** | Launch | Onboarding, Pro Tier, Docs Site, Screenshot-to-Action, Themes |
+
+Have an idea? [Open an issue](https://github.com/lennystepn-hue/ghostclip/issues/new) or join the discussion.
 
 ---
 
