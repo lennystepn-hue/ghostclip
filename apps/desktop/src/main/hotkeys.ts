@@ -29,6 +29,13 @@ export function registerHotkeys(mainWindow: BrowserWindow | null) {
   globalShortcut.register("CmdOrCtrl+Shift+S", () => {
     mainWindow?.webContents.send("shortcut:screen-context");
   });
+
+  // Ctrl+Shift+T: Open Template Picker
+  globalShortcut.register("CmdOrCtrl+Shift+T", () => {
+    mainWindow?.webContents.send("shortcut:templates");
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
 }
 
 export function unregisterHotkeys() {

@@ -485,6 +485,15 @@ export function createTemplate(id: string, name: string, content: string, catego
   );
 }
 
+export function updateTemplate(id: string, name: string, content: string, category: string): number {
+  // Re-detect variables after content change
+  const vars = [...content.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+  const result = db.prepare("UPDATE templates SET name = ?, content = ?, category = ?, variables = ? WHERE id = ?").run(
+    name, content, category, JSON.stringify(vars), id,
+  );
+  return result.changes;
+}
+
 export function deleteTemplate(id: string) {
   db.prepare("DELETE FROM templates WHERE id = ?").run(id);
 }
