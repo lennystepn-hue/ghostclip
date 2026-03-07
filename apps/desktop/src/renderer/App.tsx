@@ -13,6 +13,7 @@ import { AccountView } from "./views/AccountView";
 import { FloatingWidget } from "./views/FloatingWidget";
 import { PinBoardView } from "./views/PinBoardView";
 import { CaptureToast } from "./components/CaptureToast";
+import { CommandPalette } from "./views/CommandPalette";
 
 export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -23,6 +24,7 @@ export function App() {
   const [activeView, setActiveView] = useState("clips");
   const [clipCount, setClipCount] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const prevView = useRef(activeView);
 
   const updateCounts = useCallback(async () => {
@@ -41,6 +43,19 @@ export function App() {
     const cleanup = api.onClipNew(() => updateCounts());
     return cleanup;
   }, [isQuickPanel, isReplyPanel, isFloatingWidget, updateCounts]);
+
+  // Global Ctrl+K shortcut to open command palette
+  useEffect(() => {
+    if (isQuickPanel || isReplyPanel || isFloatingWidget) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isQuickPanel, isReplyPanel, isFloatingWidget]);
 
   const handleViewChange = (view: string) => {
     if (view === activeView) return;
@@ -127,6 +142,13 @@ export function App() {
       <CaptureToast onOpenClips={() => {
         handleViewChange("clips");
       }} />
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        onNavigate={handleViewChange}
+      />
     </div>
   );
 }
