@@ -165,9 +165,9 @@ export function SettingsView() {
 
   useEffect(() => {
     Promise.all([
-      api?.getSettings?.(),
-      api?.getRules?.(),
-      api?.getTemplates?.(),
+      api?.getSettings?.().catch(() => null),
+      api?.getRules?.().catch(() => []),
+      api?.getTemplates?.().catch(() => []),
     ]).then(([s, r, tmpl]) => {
       if (s) {
         // Build per-kind enabled flags from stored settings
@@ -195,6 +195,8 @@ export function SettingsView() {
       }
       if (r) setRules(r);
       if (tmpl) setTemplates(tmpl);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, []);
