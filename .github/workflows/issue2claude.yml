@@ -5,8 +5,32 @@ on:
     types: [labeled]
   issue_comment:
     types: [created]
+  push:
+    branches: [master]
 
 jobs:
+  # Job 0: Rebuild repo index on push to master
+  update-index:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install -g @anthropic-ai/claude-code@latest
+      - uses: lennystepn-hue/issue2claude@main
+        with:
+          mode: index
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          repo: ${{ github.repository }}
+
   solve-issue:
     if: |
       (github.event_name == 'issues' && github.event.label.name == 'claude-ready') ||
@@ -37,6 +61,7 @@ jobs:
           auth-mode: max
           oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           issue-number: ${{ github.event.issue.number }}
           issue-title: ${{ github.event.issue.title }}
           issue-body: ${{ github.event.issue.body }}
@@ -135,6 +160,7 @@ jobs:
           auth-mode: max
           oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           issue-number: ${{ github.event.issue.number }}
           issue-title: ${{ github.event.issue.title }}
           issue-body: ${{ github.event.issue.body }}
