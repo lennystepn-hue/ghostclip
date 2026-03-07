@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { fuzzyMatch, parseFilterQuery } from "@ghostclip/shared";
+import { fuzzyMatch, parseFilterQuery, confidenceColor, confidenceLabel } from "@ghostclip/shared";
+import type { Prediction } from "@ghostclip/shared";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -48,15 +49,20 @@ export function QuickPanelView() {
   const [transformOpen, setTransformOpen] = useState(false);
   const [transforming, setTransforming] = useState(false);
 
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
 
-  // ── Load clips ───────────────────────────────────────────────────────────────
+  // ── Load clips + predictions ───────────────────────────────────────────────
 
   useEffect(() => {
     const api = (window as any).ghostclip;
     api?.getClips?.().then((c: any) => {
       setClips((c || []).filter((x: any) => !x.archived));
+    });
+    api?.getPredictions?.().then((p: Prediction[]) => {
+      setPredictions(p || []);
     });
   }, []);
 
@@ -103,8 +109,27 @@ export function QuickPanelView() {
     return list;
   }, [clips, parsed]);
 
+  // Predicted clip IDs for visual marking
+  const predictedIds = useMemo(() => new Set(predictions.map((p) => p.clipId)), [predictions]);
+  const predictionMap = useMemo(() => {
+    const m = new Map<string, Prediction>();
+    for (const p of predictions) m.set(p.clipId, p);
+    return m;
+  }, [predictions]);
+
+  // Prepend predicted clips to the top of the list (when no search)
+  const { displayList, predictedClipCount } = useMemo(() => {
+    if (search || predictions.length === 0) return { displayList: filtered, predictedClipCount: 0 };
+    const predictedClips = predictions
+      .map((p) => clips.find((c) => c.id === p.clipId))
+      .filter((c): c is (typeof clips)[number] => c != null);
+    const predictedIdSet = new Set(predictedClips.map((c) => c.id));
+    const rest = filtered.filter((c) => !predictedIdSet.has(c.id));
+    return { displayList: [...predictedClips, ...rest], predictedClipCount: predictedClips.length };
+  }, [filtered, predictions, clips, search]);
+
   // Currently highlighted clip (drives the preview pane)
-  const highlightedClip: any = filtered[selectedIndex] ?? null;
+  const highlightedClip: any = displayList[selectedIndex] ?? null;
 
   // ── Persistence ──────────────────────────────────────────────────────────────
 
@@ -139,6 +164,10 @@ export function QuickPanelView() {
     if (toPaste.length === 0) return;
     const content = toPaste.map((c) => c.content || c.summary || "").join("\n\n");
     await api?.writeClipboard?.(content);
+    // Record paste for predictive learning
+    for (const c of toPaste) {
+      api?.recordPaste?.(c.id);
+    }
     api?.close?.();
   }, [clips, highlightedClip]);
 
@@ -188,7 +217,7 @@ export function QuickPanelView() {
       // Ctrl+↑ / Ctrl+↓ — jump through history 5 at a time
       if (ctrl && e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 5, filtered.length - 1));
+        setSelectedIndex((i) => Math.min(i + 5, displayList.length - 1));
         return;
       }
       if (ctrl && e.key === "ArrowUp") {
@@ -200,7 +229,7 @@ export function QuickPanelView() {
       // ↑ / ↓ — single-step navigation
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, displayList.length - 1));
         return;
       }
       if (e.key === "ArrowUp") {
@@ -233,16 +262,16 @@ export function QuickPanelView() {
       // Alt+1-9 — quick-paste clip at that position
       if (!ctrl && e.altKey && /^[1-9]$/.test(e.key)) {
         const idx = parseInt(e.key, 10) - 1;
-        if (filtered[idx]) {
+        if (displayList[idx]) {
           e.preventDefault();
-          pasteClips(new Set([filtered[idx].id]));
+          pasteClips(new Set([displayList[idx].id]));
         }
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [filtered, highlightedClip, pasteClips, selectedIds, transformOpen]);
+  }, [displayList, highlightedClip, pasteClips, selectedIds, transformOpen]);
 
   // ── Active filter chip descriptors ───────────────────────────────────────────
 
@@ -376,7 +405,7 @@ export function QuickPanelView() {
             flexShrink: 0,
           }}
         >
-          {filtered.length === 0 && (
+          {displayList.length === 0 && (
             <div style={{
               padding: "40px 16px",
               textAlign: "center",
@@ -387,75 +416,125 @@ export function QuickPanelView() {
             </div>
           )}
 
-          {filtered.map((clip, i) => {
+          {/* Ghost suggestion header for predicted clips */}
+          {!search && predictedClipCount > 0 && (
+            <div style={{
+              padding: "4px 10px 2px",
+              fontSize: "9px",
+              color: "#5c5c75",
+              fontWeight: 700,
+              letterSpacing: "0.07em",
+              textTransform: "uppercase",
+              opacity: 0.7,
+            }}>
+              You might need...
+            </div>
+          )}
+
+          {displayList.map((clip, i) => {
             const isHighlighted  = i === selectedIndex;
             const isMultiPicked  = selectedIds.has(clip.id);
+            const isPredicted    = predictedIds.has(clip.id);
+            const prediction     = predictionMap.get(clip.id);
+            // Show separator between predicted and regular clips
+            const showSeparator  = !search && predictedClipCount > 0 && i === predictedClipCount
+              && i < displayList.length;
+
             return (
-              <div
-                key={clip.id}
-                data-qp-idx={i}
-                onMouseEnter={() => setSelectedIndex(i)}
-                onClick={() => pasteClips(selectedIds.size > 0 ? selectedIds : new Set([clip.id]))}
-                style={{
-                  padding: "7px 10px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  marginBottom: "2px",
-                  position: "relative",
-                  background:
-                    isMultiPicked   ? "rgba(66,235,99,0.08)"  :
-                    isHighlighted   ? "rgba(66,99,235,0.15)"  : "transparent",
-                  border:
-                    isMultiPicked   ? "1px solid rgba(66,235,99,0.25)" :
-                    isHighlighted   ? "1px solid rgba(92,124,250,0.22)" : "1px solid transparent",
-                  transition: "background 0.08s, border-color 0.08s",
-                }}
-              >
-                {/* Numbered shortcut badge (1–9) */}
-                {i < 9 && (
-                  <span style={{
-                    position: "absolute",
-                    right: "6px",
-                    top: "6px",
-                    fontSize: "9px",
-                    color: "#3a3a52",
-                    background: "rgba(255,255,255,0.04)",
-                    borderRadius: "3px",
-                    padding: "1px 4px",
-                    fontFamily: "monospace",
+              <React.Fragment key={clip.id}>
+                {showSeparator && (
+                  <div style={{
+                    height: "1px",
+                    background: "rgba(255,255,255,0.06)",
+                    margin: "4px 8px",
+                  }} />
+                )}
+                <div
+                  data-qp-idx={i}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                  onClick={() => pasteClips(selectedIds.size > 0 ? selectedIds : new Set([clip.id]))}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    marginBottom: "2px",
+                    position: "relative",
+                    background:
+                      isMultiPicked   ? "rgba(66,235,99,0.08)"  :
+                      isPredicted && isHighlighted ? "rgba(74,222,128,0.12)" :
+                      isHighlighted   ? "rgba(66,99,235,0.15)"  :
+                      isPredicted     ? "rgba(74,222,128,0.04)" : "transparent",
+                    border:
+                      isMultiPicked   ? "1px solid rgba(66,235,99,0.25)" :
+                      isPredicted && isHighlighted ? "1px solid rgba(74,222,128,0.25)" :
+                      isHighlighted   ? "1px solid rgba(92,124,250,0.22)" :
+                      isPredicted     ? "1px solid rgba(74,222,128,0.1)" : "1px solid transparent",
+                    transition: "background 0.08s, border-color 0.08s",
+                  }}
+                >
+                  {/* Numbered shortcut badge (1-9) */}
+                  {i < 9 && (
+                    <span style={{
+                      position: "absolute",
+                      right: "6px",
+                      top: "6px",
+                      fontSize: "9px",
+                      color: "#3a3a52",
+                      background: "rgba(255,255,255,0.04)",
+                      borderRadius: "3px",
+                      padding: "1px 4px",
+                      fontFamily: "monospace",
+                    }}>
+                      {i + 1}
+                    </span>
+                  )}
+
+                  {/* Confidence indicator for predicted clips */}
+                  {isPredicted && prediction && (
+                    <span style={{
+                      position: "absolute",
+                      right: i < 9 ? "28px" : "6px",
+                      top: "6px",
+                      fontSize: "8px",
+                      color: confidenceColor(prediction.confidence),
+                      background: "rgba(0,0,0,0.3)",
+                      borderRadius: "3px",
+                      padding: "1px 4px",
+                      fontWeight: 600,
+                    }}>
+                      {confidenceLabel(prediction.confidence)}
+                    </span>
+                  )}
+
+                  <div style={{
+                    fontSize: "12px",
+                    color: isHighlighted ? "#d0d0e8" : "#a0a0b8",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    paddingRight: i < 9 ? (isPredicted ? "60px" : "22px") : (isPredicted ? "40px" : "0"),
                   }}>
-                    {i + 1}
-                  </span>
-                )}
-
-                <div style={{
-                  fontSize: "12px",
-                  color: isHighlighted ? "#d0d0e8" : "#a0a0b8",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  paddingRight: i < 9 ? "22px" : "0",
-                }}>
-                  {clipIcon(clip.type)}{" "}
-                  {clip.summary || clip.content?.slice(0, 120)}
-                </div>
-
-                {clip.tags?.length > 0 && (
-                  <div style={{ display: "flex", gap: "3px", marginTop: "3px", flexWrap: "wrap" }}>
-                    {clip.tags.slice(0, 5).map((tag: string) => (
-                      <span key={tag} style={{
-                        fontSize: "9px",
-                        color: "#91a7ff",
-                        background: "rgba(66,99,235,0.1)",
-                        padding: "1px 5px",
-                        borderRadius: "10px",
-                      }}>
-                        #{tag}
-                      </span>
-                    ))}
+                    {clipIcon(clip.type)}{" "}
+                    {clip.summary || clip.content?.slice(0, 120)}
                   </div>
-                )}
-              </div>
+
+                  {clip.tags?.length > 0 && (
+                    <div style={{ display: "flex", gap: "3px", marginTop: "3px", flexWrap: "wrap" }}>
+                      {clip.tags.slice(0, 5).map((tag: string) => (
+                        <span key={tag} style={{
+                          fontSize: "9px",
+                          color: "#91a7ff",
+                          background: "rgba(66,99,235,0.1)",
+                          padding: "1px 5px",
+                          borderRadius: "10px",
+                        }}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>

@@ -109,6 +109,32 @@ export function initDb() {
     )
   `);
 
+  // Predictive paste: track copy-paste sequences
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS paste_sequences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clip_id TEXT NOT NULL,
+      next_clip_id TEXT NOT NULL,
+      source_app TEXT,
+      count INTEGER DEFAULT 1,
+      last_used TEXT NOT NULL,
+      UNIQUE(clip_id, next_clip_id)
+    )
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_paste_seq_clip ON paste_sequences(clip_id)`);
+
+  // Predictive paste: hourly usage patterns
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hourly_patterns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clip_id TEXT NOT NULL,
+      hour INTEGER NOT NULL,
+      count INTEGER DEFAULT 1,
+      UNIQUE(clip_id, hour)
+    )
+  `);
+
   return db;
 }
 
@@ -540,4 +566,59 @@ export function deleteRule(id: string) {
 
 export function toggleRule(id: string) {
   db.prepare("UPDATE clipboard_rules SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END WHERE id = ?").run(id);
+}
+
+// Predictive paste: record a paste sequence (clipA was followed by clipB)
+export function recordPasteSequence(clipId: string, nextClipId: string, sourceApp: string | null) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO paste_sequences (clip_id, next_clip_id, source_app, count, last_used)
+    VALUES (?, ?, ?, 1, ?)
+    ON CONFLICT(clip_id, next_clip_id)
+    DO UPDATE SET count = count + 1, last_used = ?, source_app = COALESCE(?, source_app)
+  `).run(clipId, nextClipId, sourceApp, now, now, sourceApp);
+}
+
+// Predictive paste: record hourly usage pattern
+export function recordHourlyPattern(clipId: string, hour: number) {
+  db.prepare(`
+    INSERT INTO hourly_patterns (clip_id, hour, count)
+    VALUES (?, ?, 1)
+    ON CONFLICT(clip_id, hour)
+    DO UPDATE SET count = count + 1
+  `).run(clipId, hour);
+}
+
+// Predictive paste: get all paste sequences
+export function getPasteSequences(): { clipId: string; nextClipId: string; sourceApp: string | null; count: number; lastUsed: string }[] {
+  return (db.prepare("SELECT * FROM paste_sequences ORDER BY count DESC LIMIT 500").all() as any[]).map(r => ({
+    clipId: r.clip_id,
+    nextClipId: r.next_clip_id,
+    sourceApp: r.source_app,
+    count: r.count,
+    lastUsed: r.last_used,
+  }));
+}
+
+// Predictive paste: get hourly patterns
+export function getHourlyPatterns(): { clipId: string; hour: number; count: number }[] {
+  return (db.prepare("SELECT * FROM hourly_patterns ORDER BY count DESC LIMIT 500").all() as any[]).map(r => ({
+    clipId: r.clip_id,
+    hour: r.hour,
+    count: r.count,
+  }));
+}
+
+// Predictive paste: get recent clips with prediction-relevant fields
+export function getRecentClipsForPrediction(limit = 50): { id: string; content: string; summary: string | null; tags: string[]; sourceApp: string | null; type: string; createdAt: string }[] {
+  const rows = db.prepare("SELECT id, content, summary, tags, source_app, type, created_at FROM clips WHERE archived = 0 ORDER BY created_at DESC LIMIT ?").all(limit) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    content: r.content,
+    summary: r.summary,
+    tags: JSON.parse(r.tags || "[]"),
+    sourceApp: r.source_app,
+    type: r.type,
+    createdAt: r.created_at,
+  }));
 }
