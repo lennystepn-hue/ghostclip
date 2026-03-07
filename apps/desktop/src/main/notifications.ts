@@ -1,5 +1,6 @@
 import { Notification } from "electron";
 import { isDndMode } from "./tray";
+import { getSetting } from "./db";
 
 type NotificationType = "clip" | "sensitive" | "smart" | "reply";
 
@@ -14,18 +15,27 @@ export function notify({ type, title, body, onClick }: NotifyOptions) {
   // DND mode: only show critical (sensitive) notifications
   if (isDndMode() && type !== "sensitive") return;
 
-  const notification = new Notification({
-    title,
-    body,
-    silent: type === "clip",
-    urgency: type === "sensitive" ? "critical" : "normal",
-  });
+  // Check notifications setting (skip for sensitive — always show those)
+  if (type !== "sensitive" && getSetting("notifications") === "false") return;
 
-  if (onClick) {
-    notification.on("click", onClick);
+  if (!Notification.isSupported()) return;
+
+  try {
+    const notification = new Notification({
+      title,
+      body,
+      silent: type === "clip",
+      urgency: type === "sensitive" ? "critical" : "normal",
+    });
+
+    if (onClick) {
+      notification.on("click", onClick);
+    }
+
+    notification.show();
+  } catch {
+    // Notification failed (e.g. Windows without app shortcut in Start Menu)
   }
-
-  notification.show();
 
   // Auto-dismiss clip notifications after 2s
   if (type === "clip") {
