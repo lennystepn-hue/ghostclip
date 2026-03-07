@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { cn } from "../utils";
-import { Ghost, Clipboard, Tag, FolderOpen, Wand2, MessageCircle, Archive, Settings, User, BarChart3 } from "lucide-react";
+import { Ghost, Clipboard, Tag, FolderOpen, Wand2, MessageCircle, Archive, Settings, User, BarChart3, LayoutGrid } from "lucide-react";
 
 interface SidebarItem {
   id: string;
@@ -18,6 +18,7 @@ interface SidebarProps {
 
 const mainItems: SidebarItem[] = [
   { id: "clips", label: "Clips", icon: <Clipboard className="w-4 h-4" /> },
+  { id: "pinboard", label: "Pin Board", icon: <LayoutGrid className="w-4 h-4" /> },
   { id: "tags", label: "Tags", icon: <Tag className="w-4 h-4" /> },
   { id: "collections", label: "Sammlungen", icon: <FolderOpen className="w-4 h-4" /> },
   { id: "smart", label: "Smart", icon: <Wand2 className="w-4 h-4" /> },
