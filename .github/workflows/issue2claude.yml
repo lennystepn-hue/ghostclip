@@ -1,0 +1,45 @@
+name: Issue2Claude
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  solve-issue:
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'claude-ready') ||
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.comment.body, 'claude-retry') &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'))
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm install -g @anthropic-ai/claude-code@latest
+
+      - uses: lennystepn-hue/issue2claude@main
+        with:
+          auth-mode: max
+          oauth-token: ${{ secrets.CLAUDE_OAUTH_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.issue.number || github.event.comment.issue_number }}
+          issue-title: ${{ github.event.issue.title }}
+          issue-body: ${{ github.event.issue.body }}
+          repo: ${{ github.repository }}
