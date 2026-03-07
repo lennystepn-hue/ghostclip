@@ -16,6 +16,66 @@ interface SettingsState {
   [key: string]: any;
 }
 
+interface Rule {
+  id: string;
+  name: string;
+  conditionType: string;
+  conditionValue: string;
+  actionType: string;
+  actionValue: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+const CONDITION_TYPES = [
+  { value: "contains", label: "Contains text" },
+  { value: "regex", label: "Matches regex" },
+  { value: "source_app", label: "From app" },
+  { value: "content_type", label: "Content type" },
+  { value: "sensitivity", label: "Sensitivity detected" },
+];
+
+const ACTION_TYPES = [
+  { value: "auto_tag", label: "Auto-tag" },
+  { value: "auto_pin", label: "Auto-pin" },
+  { value: "auto_collection", label: "Add to collection" },
+  { value: "auto_archive", label: "Auto-archive" },
+  { value: "auto_expire", label: "Auto-expire (5 min)" },
+];
+
+const CONTENT_TYPE_OPTIONS = ["text", "url", "image", "file"];
+
+/** Test a rule's condition against a text string (client-side preview) */
+function testRuleCondition(rule: Rule, text: string): boolean {
+  switch (rule.conditionType) {
+    case "contains":
+      return text.toLowerCase().includes(rule.conditionValue.toLowerCase());
+    case "regex":
+      try {
+        return new RegExp(rule.conditionValue, "i").test(text);
+      } catch {
+        return false;
+      }
+    case "source_app":
+      // Can't test source app without an actual clipboard event — always false in tester
+      return false;
+    case "content_type": {
+      const isUrl = /^https?:\/\//i.test(text.trim());
+      const isFilePath = /^(\/|[A-Z]:\\|~\/)/.test(text.trim()) && !text.trim().includes("\n");
+      if (rule.conditionValue === "url") return isUrl;
+      if (rule.conditionValue === "file") return isFilePath;
+      if (rule.conditionValue === "text") return !isUrl && !isFilePath;
+      return false;
+    }
+    case "sensitivity": {
+      const keywords = ["password", "token", "secret", "api_key", "apikey", "passwd", "private_key"];
+      return keywords.some(k => text.toLowerCase().includes(k));
+    }
+    default:
+      return false;
+  }
+}
+
 const SHORTCUTS = [
   { keys: "Ctrl+Shift+V", action: "Quick Panel oeffnen" },
   { keys: "Ctrl+Shift+R", action: "Reply-Vorschlaege (markierten Text)" },
@@ -43,10 +103,28 @@ export function SettingsView() {
   const [clearing, setClearing] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
+
+  // Clipboard Rules state
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [showRuleBuilder, setShowRuleBuilder] = useState(false);
+  const [newRule, setNewRule] = useState({
+    name: "",
+    conditionType: "contains",
+    conditionValue: "",
+    actionType: "auto_tag",
+    actionValue: "",
+  });
+  const [ruleStatus, setRuleStatus] = useState("");
+  const [testText, setTestText] = useState("");
+  const [showRuleTester, setShowRuleTester] = useState(false);
+
   const api = (window as any).ghostclip;
 
   useEffect(() => {
-    api?.getSettings?.().then((s: any) => {
+    Promise.all([
+      api?.getSettings?.(),
+      api?.getRules?.(),
+    ]).then(([s, r]) => {
       if (s) {
         setSettings({
           clipboardWatcher: s.clipboardWatcher !== "false",
@@ -63,6 +141,7 @@ export function SettingsView() {
           quietMode: s.quietMode === "true",
         });
       }
+      if (r) setRules(r);
       setLoading(false);
     });
   }, []);
@@ -84,6 +163,87 @@ export function SettingsView() {
     setClearing(true);
     await api?.clearAllClips?.();
     setClearing(false);
+  };
+
+  const handleCreateRule = async () => {
+    const noValueAction = ["auto_pin", "auto_archive", "auto_expire"].includes(newRule.actionType);
+    const effectiveActionValue = noValueAction ? newRule.actionType : newRule.actionValue.trim();
+    if (!newRule.name.trim() || !newRule.conditionValue.trim() || (!noValueAction && !newRule.actionValue.trim())) {
+      setRuleStatus("Please fill in all fields.");
+      return;
+    }
+    const created = await api?.createRule?.(
+      newRule.name.trim(),
+      newRule.conditionType,
+      newRule.conditionValue.trim(),
+      newRule.actionType,
+      effectiveActionValue,
+    );
+    if (created) {
+      const updated = await api?.getRules?.() || [];
+      setRules(updated);
+      setNewRule({ name: "", conditionType: "contains", conditionValue: "", actionType: "auto_tag", actionValue: "" });
+      setShowRuleBuilder(false);
+      setRuleStatus("Rule created.");
+      setTimeout(() => setRuleStatus(""), 3000);
+    }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+    if (!confirm("Delete this rule?")) return;
+    await api?.deleteRule?.(id);
+    setRules(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleToggleRule = async (id: string) => {
+    await api?.toggleRule?.(id);
+    setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+  };
+
+  const handleExportRules = () => {
+    const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), rules }, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ghostclip-rules-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setRuleStatus(`${rules.length} rules exported.`);
+    setTimeout(() => setRuleStatus(""), 3000);
+  };
+
+  const handleImportRules = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const importedRules: any[] = data.rules || [];
+        if (!importedRules.length) {
+          setRuleStatus("No rules found in file.");
+          return;
+        }
+        let created = 0;
+        for (const r of importedRules) {
+          if (r.conditionType && r.conditionValue && r.actionType && r.actionValue) {
+            await api?.createRule?.(r.name || "Imported rule", r.conditionType, r.conditionValue, r.actionType, r.actionValue);
+            created++;
+          }
+        }
+        const updated = await api?.getRules?.() || [];
+        setRules(updated);
+        setRuleStatus(`${created} of ${importedRules.length} rules imported.`);
+        setTimeout(() => setRuleStatus(""), 4000);
+      } catch {
+        setRuleStatus("Import failed — invalid file.");
+      }
+    };
+    input.click();
   };
 
   const handleExport = async () => {
@@ -226,6 +386,209 @@ export function SettingsView() {
         }}>Claude AI</span>
       </div>
 
+      {/* Clipboard Rules */}
+      <h2 style={{ ...sectionTitle, justifyContent: "space-between" }}>
+        <span>Clipboard Rules</span>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => setShowRuleTester(!showRuleTester)} style={smallBtn}>
+            {showRuleTester ? "Hide Tester" : "Test Rules"}
+          </button>
+          <button onClick={handleImportRules} style={smallBtn}>Import</button>
+          <button onClick={handleExportRules} style={{ ...smallBtn, color: "#748ffc" }}>Export</button>
+          <button onClick={() => setShowRuleBuilder(!showRuleBuilder)} style={{ ...smallBtn, color: "#91a7ff" }}>
+            {showRuleBuilder ? "Cancel" : "+ Add Rule"}
+          </button>
+        </div>
+      </h2>
+
+      {/* Rule Builder */}
+      {showRuleBuilder && (
+        <div style={{ ...cardStyle, marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8", marginBottom: "12px" }}>New Rule</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <input
+              placeholder="Rule name (e.g. Tag Jira tickets)"
+              value={newRule.name}
+              onChange={e => setNewRule(prev => ({ ...prev, name: e.target.value }))}
+              style={inputStyle}
+            />
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span style={{ fontSize: "11px", color: "#748ffc", fontWeight: 600, minWidth: "20px" }}>IF</span>
+              <select
+                value={newRule.conditionType}
+                onChange={e => {
+                  const ct = e.target.value;
+                  // Sensitivity has no user-defined value — use a placeholder
+                  setNewRule(prev => ({
+                    ...prev,
+                    conditionType: ct,
+                    conditionValue: ct === "sensitivity" ? "auto" : "",
+                  }));
+                }}
+                style={selectStyle}
+              >
+                {CONDITION_TYPES.map(ct => (
+                  <option key={ct.value} value={ct.value}>{ct.label}</option>
+                ))}
+              </select>
+              {newRule.conditionType === "content_type" ? (
+                <select
+                  value={newRule.conditionValue}
+                  onChange={e => setNewRule(prev => ({ ...prev, conditionValue: e.target.value }))}
+                  style={selectStyle}
+                >
+                  <option value="">Pick type…</option>
+                  {CONTENT_TYPE_OPTIONS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  placeholder={
+                    newRule.conditionType === "contains" ? "text to match" :
+                    newRule.conditionType === "regex" ? "/PROD-\\d+/" :
+                    newRule.conditionType === "source_app" ? "VS Code" :
+                    newRule.conditionType === "sensitivity" ? "any (auto-detected)" : "value"
+                  }
+                  value={newRule.conditionValue}
+                  onChange={e => setNewRule(prev => ({ ...prev, conditionValue: e.target.value }))}
+                  style={inputStyle}
+                  disabled={newRule.conditionType === "sensitivity"}
+                />
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span style={{ fontSize: "11px", color: "#748ffc", fontWeight: 600, minWidth: "20px" }}>THEN</span>
+              <select
+                value={newRule.actionType}
+                onChange={e => setNewRule(prev => ({ ...prev, actionType: e.target.value }))}
+                style={selectStyle}
+              >
+                {ACTION_TYPES.map(at => (
+                  <option key={at.value} value={at.value}>{at.label}</option>
+                ))}
+              </select>
+              <input
+                placeholder={
+                  newRule.actionType === "auto_tag" ? "tag name" :
+                  newRule.actionType === "auto_collection" ? "collection name" :
+                  newRule.actionType === "auto_pin" || newRule.actionType === "auto_archive" || newRule.actionType === "auto_expire" ? "(no value needed)" :
+                  "value"
+                }
+                value={newRule.actionValue}
+                onChange={e => setNewRule(prev => ({ ...prev, actionValue: e.target.value }))}
+                style={inputStyle}
+                disabled={["auto_pin", "auto_archive", "auto_expire"].includes(newRule.actionType)}
+              />
+            </div>
+            <button onClick={handleCreateRule} style={{
+              padding: "8px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
+              background: "rgba(66,99,235,0.2)", border: "1px solid rgba(66,99,235,0.3)", color: "#748ffc",
+              alignSelf: "flex-start",
+            }}>Save Rule</button>
+          </div>
+        </div>
+      )}
+
+      {/* Rule Tester */}
+      {showRuleTester && (
+        <div style={{ ...cardStyle, marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8", marginBottom: "8px" }}>
+            Rule Tester — paste text to see which rules would fire
+          </p>
+          <textarea
+            placeholder="Paste text here to test rules..."
+            value={testText}
+            onChange={e => setTestText(e.target.value)}
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", fontFamily: "'JetBrains Mono', monospace" }}
+          />
+          {testText && rules.length > 0 && (
+            <div style={{ marginTop: "8px" }}>
+              {(() => {
+                const matching = rules.filter(r => r.enabled && testRuleCondition(r, testText));
+                const skipped = rules.filter(r => r.enabled && !testRuleCondition(r, testText));
+                return (
+                  <>
+                    {matching.length === 0 ? (
+                      <p style={{ fontSize: "11px", color: "#5c5c75" }}>No enabled rules match this text.</p>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: "11px", color: "#51cf66", marginBottom: "4px" }}>
+                          {matching.length} rule{matching.length !== 1 ? "s" : ""} would fire:
+                        </p>
+                        {matching.map(r => (
+                          <div key={r.id} style={{ fontSize: "11px", color: "#c4c4d4", marginBottom: "2px" }}>
+                            ✓ <strong>{r.name}</strong> → {ACTION_TYPES.find(a => a.value === r.actionType)?.label}
+                            {r.actionValue && `: "${r.actionValue}"`}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {skipped.length > 0 && (
+                      <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "4px" }}>
+                        {skipped.length} enabled rule{skipped.length !== 1 ? "s" : ""} did not match.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+          {testText && rules.filter(r => r.enabled).length === 0 && (
+            <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "8px" }}>No enabled rules to test against.</p>
+          )}
+        </div>
+      )}
+
+      {/* Rules List */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "28px" }}>
+        {rules.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: "center" as const, padding: "20px" }}>
+            <p style={{ fontSize: "12px", color: "#5c5c75" }}>No rules yet. Click "+ Add Rule" to create one.</p>
+          </div>
+        ) : (
+          rules.map(rule => (
+            <div key={rule.id} style={{
+              ...cardStyle,
+              display: "flex", alignItems: "center", gap: "10px",
+              opacity: rule.enabled ? 1 : 0.5,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8", marginBottom: "2px" }}>{rule.name}</p>
+                <p style={{ fontSize: "11px", color: "#5c5c75", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                  <span style={{ color: "#748ffc" }}>IF</span>{" "}
+                  {CONDITION_TYPES.find(c => c.value === rule.conditionType)?.label}{" "}
+                  {rule.conditionType !== "sensitivity" && <code style={{ fontFamily: "'JetBrains Mono', monospace", background: "rgba(255,255,255,0.06)", padding: "1px 4px", borderRadius: "3px" }}>{rule.conditionValue}</code>}{" "}
+                  <span style={{ color: "#748ffc" }}>THEN</span>{" "}
+                  {ACTION_TYPES.find(a => a.value === rule.actionType)?.label}
+                  {rule.actionValue && ` "${rule.actionValue}"`}
+                </p>
+              </div>
+              {/* Enable/disable toggle */}
+              <button onClick={() => handleToggleRule(rule.id)} style={{
+                width: "36px", height: "18px", borderRadius: "9px", border: "none",
+                background: rule.enabled ? "#4263eb" : "rgba(255,255,255,0.1)", cursor: "pointer",
+                position: "relative", flexShrink: 0,
+              }}>
+                <span style={{
+                  position: "absolute", top: "2px", left: rule.enabled ? "19px" : "2px",
+                  width: "14px", height: "14px", borderRadius: "50%", background: "white", transition: "left 0.2s",
+                }} />
+              </button>
+              {/* Delete */}
+              <button onClick={() => handleDeleteRule(rule.id)} style={{
+                background: "none", border: "none", color: "#ef444480", cursor: "pointer",
+                fontSize: "14px", padding: "2px 4px", flexShrink: 0,
+              }} title="Delete rule">✕</button>
+            </div>
+          ))
+        )}
+        {ruleStatus && (
+          <p style={{ fontSize: "11px", color: "#91a7ff" }}>{ruleStatus}</p>
+        )}
+      </div>
+
       {/* Keyboard Shortcuts */}
       <h2 style={sectionTitle}>
         <span>Tastenkombinationen</span>
@@ -294,17 +657,21 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.05)",
 };
 
+const smallBtn: React.CSSProperties = {
+  padding: "4px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer",
+  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#8888a0",
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1, padding: "7px 10px", borderRadius: "8px", fontSize: "12px",
+  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)",
+  color: "#e0e0e8", outline: "none", width: "100%",
+};
+
 const selectStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: "8px",
-  color: "#e0e0e8",
-  fontSize: "12px",
-  padding: "6px 10px",
-  cursor: "pointer",
-  outline: "none",
-  flexShrink: 0,
-  marginLeft: "12px",
+  padding: "7px 10px", borderRadius: "8px", fontSize: "12px",
+  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)",
+  color: "#e0e0e8", outline: "none", cursor: "pointer",
 };
 
 function SettingToggle({ label, description, checked, onChange }: {
