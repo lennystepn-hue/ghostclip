@@ -15,10 +15,14 @@ export function createQuickPanel(): BrowserWindow {
     ? screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
     : screen.getPrimaryDisplay().workArea;
 
+  // Target 60% of the display width; clamp to a comfortable min/max
+  const panelWidth  = Math.round(Math.min(Math.max(width * 0.6, 720), 1100));
+  const panelHeight = 560;
+
   quickPanel = new BrowserWindow({
-    width: 420,
-    height: 520,
-    x: Math.round(x + (width - 420) / 2),
+    width: panelWidth,
+    height: panelHeight,
+    x: Math.round(x + (width - panelWidth) / 2),
     y: y + 60,
     frame: false,
     resizable: false,
