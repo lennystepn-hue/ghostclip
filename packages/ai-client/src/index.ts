@@ -3,3 +3,6 @@ export { generateReplies } from "./replies";
 export { chat } from "./chat";
 export { analyzeImage } from "./vision";
 export { transformText } from "./transform";
+// Re-export content detection utilities (defined in @ghostclip/shared for renderer compatibility)
+export { detectContentKind, getAutoActions } from "@ghostclip/shared";
+export type { ContentKind, ContentDetectionResult, AutoAction } from "@ghostclip/shared";

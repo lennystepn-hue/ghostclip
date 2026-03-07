@@ -1,4 +1,19 @@
 import React, { useState, useEffect } from "react";
+import { CONTENT_KIND_LABELS, type ContentKind } from "@ghostclip/shared";
+
+// Content kinds that have auto-actions (excludes text/url which are base types)
+const AUTO_ACTION_KINDS: ContentKind[] = [
+  "error_message",
+  "code_snippet",
+  "phone_number",
+  "address",
+  "json",
+  "xml",
+  "color_hex",
+  "cron_expression",
+  "regex_pattern",
+  "datetime",
+];
 
 interface SettingsState {
   clipboardWatcher: boolean;
@@ -13,6 +28,7 @@ interface SettingsState {
   toastDuration: string;
   toastFilter: string;
   quietMode: boolean;
+  autoActionsEnabled: boolean;
   [key: string]: any;
 }
 
@@ -98,6 +114,7 @@ export function SettingsView() {
     toastDuration: "2",
     toastFilter: "all",
     quietMode: false,
+    autoActionsEnabled: true,
   });
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
@@ -126,6 +143,11 @@ export function SettingsView() {
       api?.getRules?.(),
     ]).then(([s, r]) => {
       if (s) {
+        // Build per-kind enabled flags from stored settings
+        const kindFlags: Record<string, boolean> = {};
+        for (const kind of AUTO_ACTION_KINDS) {
+          kindFlags[`autoAction_${kind}`] = s[`autoAction_${kind}`] !== "false";
+        }
         setSettings({
           clipboardWatcher: s.clipboardWatcher !== "false",
           notifications: s.notifications !== "false",
@@ -139,6 +161,8 @@ export function SettingsView() {
           toastDuration: s.toastDuration || "2",
           toastFilter: s.toastFilter || "all",
           quietMode: s.quietMode === "true",
+          autoActionsEnabled: s.autoActionsEnabled !== "false",
+          ...kindFlags,
         });
       }
       if (r) setRules(r);
@@ -384,6 +408,57 @@ export function SettingsView() {
           background: "rgba(66,99,235,0.12)", border: "1px solid rgba(66,99,235,0.15)",
           padding: "4px 10px", borderRadius: "6px",
         }}>Claude AI</span>
+      </div>
+
+      {/* AI Auto-Actions */}
+      <h2 style={sectionTitle}>AI Auto-Actions</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "28px" }}>
+        <SettingToggle
+          label="Enable Auto-Actions"
+          description="Show context-aware suggestions when you copy specific content types"
+          checked={settings.autoActionsEnabled}
+          onChange={() => toggle("autoActionsEnabled")}
+        />
+
+        {/* Per-kind toggles */}
+        {settings.autoActionsEnabled && (
+          <div style={{ ...cardStyle, paddingTop: "14px", paddingBottom: "14px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8", marginBottom: "10px" }}>
+              Enable per content type
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {AUTO_ACTION_KINDS.map((kind) => {
+                const key = `autoAction_${kind}`;
+                const enabled = settings[key] !== false;
+                return (
+                  <div key={kind} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)",
+                  }}>
+                    <span style={{ fontSize: "12px", color: "#c4c4d4" }}>
+                      {CONTENT_KIND_LABELS[kind]}
+                    </span>
+                    <button onClick={() => {
+                      const newVal = !enabled;
+                      setSettings(prev => ({ ...prev, [key]: newVal }));
+                      api?.updateSetting?.(key, String(newVal));
+                    }} style={{
+                      width: "36px", height: "18px", borderRadius: "9px", border: "none",
+                      background: enabled ? "#4263eb" : "rgba(255,255,255,0.1)", cursor: "pointer",
+                      position: "relative", flexShrink: 0,
+                    }}>
+                      <span style={{
+                        position: "absolute", top: "2px", left: enabled ? "19px" : "2px",
+                        width: "14px", height: "14px", borderRadius: "50%", background: "white",
+                        transition: "left 0.2s",
+                      }} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Clipboard Rules */}
