@@ -11,6 +11,7 @@ import { QuickPanelView } from "./views/QuickPanelView";
 import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
 import { FloatingWidget } from "./views/FloatingWidget";
+import { PinBoardView } from "./views/PinBoardView";
 
 export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -57,6 +58,7 @@ export function App() {
   const renderView = () => {
     switch (activeView) {
       case "clips": return <ClipFeed />;
+      case "pinboard": return <PinBoardView />;
       case "tags": return <TagsView />;
       case "collections": return <CollectionsView />;
       case "smart": return <SmartView />;
