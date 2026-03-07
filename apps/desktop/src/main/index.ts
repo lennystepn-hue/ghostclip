@@ -846,6 +846,11 @@ app.whenReady().then(() => {
     createTemplate(id, name, content, category);
     return { id, name, content, category };
   });
+  ipcMain.handle("templates:update", (_e, id: string, name: string, content: string, category: string) => {
+    const { updateTemplate } = require("./db");
+    const changes = updateTemplate(id, name, content, category);
+    return changes > 0;
+  });
   ipcMain.handle("templates:delete", (_e, id: string) => {
     const { deleteTemplate } = require("./db");
     deleteTemplate(id);

@@ -3,3 +3,4 @@ export * from "./constants";
 export * from "./validators";
 export * from "./content-detector";
 export * from "./quick-panel-utils";
+export * from "./template-utils";

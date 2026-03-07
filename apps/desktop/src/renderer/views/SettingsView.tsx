@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CONTENT_KIND_LABELS, type ContentKind } from "@ghostclip/shared";
+import { extractVariables } from "@ghostclip/shared";
 
 // Content kinds that have auto-actions (excludes text/url which are base types)
 const AUTO_ACTION_KINDS: ContentKind[] = [
@@ -31,6 +32,18 @@ interface SettingsState {
   autoActionsEnabled: boolean;
   [key: string]: any;
 }
+
+interface Template {
+  id: string;
+  name: string;
+  content: string;
+  category: string;
+  variables: string[];
+  useCount: number;
+  createdAt: string;
+}
+
+const TEMPLATE_CATEGORIES = ["Allgemein", "Email", "Code", "Support"];
 
 interface Rule {
   id: string;
@@ -98,6 +111,7 @@ const SHORTCUTS = [
   { keys: "Ctrl+Shift+F", action: "Semantische Suche" },
   { keys: "Ctrl+Shift+P", action: "Letzten Clip pinnen" },
   { keys: "Ctrl+Shift+S", action: "Screen Context Toggle" },
+  { keys: "Ctrl+Shift+T", action: "Template-Picker oeffnen" },
 ];
 
 export function SettingsView() {
@@ -121,6 +135,16 @@ export function SettingsView() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
 
+  // Templates state
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateStatus, setTemplateStatus] = useState("");
+  // null = create mode, Template = edit mode
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [templateForm, setTemplateForm] = useState({ name: "", content: "", category: "Allgemein" });
+  const [saving, setSaving] = useState(false);
+
   // Clipboard Rules state
   const [rules, setRules] = useState<Rule[]>([]);
   const [showRuleBuilder, setShowRuleBuilder] = useState(false);
@@ -141,7 +165,8 @@ export function SettingsView() {
     Promise.all([
       api?.getSettings?.(),
       api?.getRules?.(),
-    ]).then(([s, r]) => {
+      api?.getTemplates?.(),
+    ]).then(([s, r, tmpl]) => {
       if (s) {
         // Build per-kind enabled flags from stored settings
         const kindFlags: Record<string, boolean> = {};
@@ -166,6 +191,7 @@ export function SettingsView() {
         });
       }
       if (r) setRules(r);
+      if (tmpl) setTemplates(tmpl);
       setLoading(false);
     });
   }, []);
@@ -314,6 +340,59 @@ export function SettingsView() {
     input.click();
   };
 
+  const openCreateTemplate = () => {
+    setEditingTemplate(null);
+    setTemplateForm({ name: "", content: "", category: "Allgemein" });
+    setShowTemplateForm(true);
+  };
+
+  const openEditTemplate = (tmpl: Template) => {
+    setEditingTemplate(tmpl);
+    setTemplateForm({ name: tmpl.name, content: tmpl.content, category: tmpl.category });
+    setShowTemplateForm(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (saving) return;
+    const { name, content, category } = templateForm;
+    if (!name.trim() || !content.trim()) {
+      setTemplateStatus("Name and content are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editingTemplate) {
+        await api?.updateTemplate?.(editingTemplate.id, name.trim(), content.trim(), category);
+      } else {
+        await api?.createTemplate?.(name.trim(), content.trim(), category);
+      }
+      const updated = await api?.getTemplates?.() || [];
+      setTemplates(updated);
+      setShowTemplateForm(false);
+      setEditingTemplate(null);
+      setTemplateForm({ name: "", content: "", category: "Allgemein" });
+      setTemplateStatus(editingTemplate ? "Template updated." : "Template created.");
+      setTimeout(() => setTemplateStatus(""), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm("Delete this template?")) return;
+    await api?.deleteTemplate?.(id);
+    setTemplates(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Filter templates by search query
+  const filteredTemplates = templateSearch
+    ? templates.filter(t =>
+        t.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
+        t.content.toLowerCase().includes(templateSearch.toLowerCase()) ||
+        t.category.toLowerCase().includes(templateSearch.toLowerCase()),
+      )
+    : templates;
+
   if (loading) return <div style={{ padding: "40px", color: "#5c5c75", textAlign: "center" }}>Laden...</div>;
 
   return (
@@ -458,6 +537,161 @@ export function SettingsView() {
               })}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Templates */}
+      <h2 style={{ ...sectionTitle, justifyContent: "space-between" }}>
+        <span>Templates</span>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={showTemplateForm && !editingTemplate
+              ? () => { setShowTemplateForm(false); }
+              : openCreateTemplate}
+            style={{ ...smallBtn, color: "#91a7ff" }}
+          >
+            {showTemplateForm && !editingTemplate ? "Cancel" : "+ New Template"}
+          </button>
+        </div>
+      </h2>
+
+      {/* Template search */}
+      <div style={{ marginBottom: "10px" }}>
+        <input
+          placeholder="Search templates..."
+          value={templateSearch}
+          onChange={e => setTemplateSearch(e.target.value)}
+          style={{ ...inputStyle, marginBottom: 0 }}
+        />
+      </div>
+
+      {/* Template create/edit form */}
+      {showTemplateForm && (
+        <div style={{ ...cardStyle, marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8", marginBottom: "12px" }}>
+            {editingTemplate ? "Edit Template" : "New Template"}
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <input
+              placeholder="Template name (e.g. Email Greeting)"
+              value={templateForm.name}
+              onChange={e => setTemplateForm(prev => ({ ...prev, name: e.target.value }))}
+              style={inputStyle}
+            />
+            <select
+              value={templateForm.category}
+              onChange={e => setTemplateForm(prev => ({ ...prev, category: e.target.value }))}
+              style={selectStyle}
+            >
+              {TEMPLATE_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <textarea
+              placeholder={"Template text with {variables}\ne.g. Hello {name}, thanks for your message about {topic}."}
+              value={templateForm.content}
+              onChange={e => setTemplateForm(prev => ({ ...prev, content: e.target.value }))}
+              rows={5}
+              style={{ ...inputStyle, resize: "vertical", fontFamily: "'JetBrains Mono', monospace" }}
+            />
+            {/* Live variable detection */}
+            {templateForm.content && (() => {
+              const vars = extractVariables(templateForm.content);
+              if (vars.length === 0) return null;
+              return (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  <span style={{ fontSize: "11px", color: "#5c5c75" }}>Detected variables:</span>
+                  {vars.map(v => (
+                    <span key={v} style={{
+                      fontSize: "11px", fontFamily: "'JetBrains Mono', monospace",
+                      color: "#748ffc", background: "rgba(66,99,235,0.1)",
+                      border: "1px solid rgba(66,99,235,0.15)", padding: "1px 6px", borderRadius: "4px",
+                    }}>{`{${v}}`}</span>
+                  ))}
+                </div>
+              );
+            })()}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={handleSaveTemplate} style={{
+                padding: "8px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
+                background: "rgba(66,99,235,0.2)", border: "1px solid rgba(66,99,235,0.3)", color: "#748ffc",
+              }}>{editingTemplate ? "Update Template" : "Save Template"}</button>
+              <button onClick={() => { setShowTemplateForm(false); setEditingTemplate(null); }} style={{
+                padding: "8px 14px", borderRadius: "8px", fontSize: "12px", cursor: "pointer",
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "#5c5c75",
+              }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "28px" }}>
+        {filteredTemplates.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: "center" as const, padding: "20px" }}>
+            <p style={{ fontSize: "12px", color: "#5c5c75" }}>
+              {templates.length === 0
+                ? 'No templates yet. Click "+ New Template" to create one.'
+                : "No templates match your search."}
+            </p>
+          </div>
+        ) : (
+          filteredTemplates.map(tmpl => {
+            const vars = extractVariables(tmpl.content);
+            return (
+              <div key={tmpl.id} style={{ ...cardStyle, display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 600, color: "#e0e0e8" }}>{tmpl.name}</p>
+                    <span style={{
+                      fontSize: "10px", color: "#5c5c75",
+                      background: "rgba(255,255,255,0.04)", padding: "1px 6px", borderRadius: "10px",
+                    }}>{tmpl.category}</span>
+                    {tmpl.useCount > 0 && (
+                      <span style={{ fontSize: "10px", color: "#5c5c75", marginLeft: "auto" }}>
+                        {tmpl.useCount}× used
+                      </span>
+                    )}
+                  </div>
+                  <p style={{
+                    fontSize: "11px", color: "#5c5c75", marginBottom: vars.length > 0 ? "4px" : 0,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                  }}>
+                    {tmpl.content.slice(0, 80)}{tmpl.content.length > 80 ? "…" : ""}
+                  </p>
+                  {vars.length > 0 && (
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      {vars.map(v => (
+                        <span key={v} style={{
+                          fontSize: "10px", fontFamily: "'JetBrains Mono', monospace",
+                          color: "#748ffc", background: "rgba(66,99,235,0.1)",
+                          border: "1px solid rgba(66,99,235,0.15)", padding: "1px 5px", borderRadius: "4px",
+                        }}>{`{${v}}`}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                  <button
+                    onClick={() => openEditTemplate(tmpl)}
+                    style={{ ...smallBtn, color: "#748ffc" }}
+                    title="Edit"
+                  >Edit</button>
+                  <button
+                    onClick={() => handleDeleteTemplate(tmpl.id)}
+                    style={{
+                      background: "none", border: "none", color: "#ef444480",
+                      cursor: "pointer", fontSize: "14px", padding: "2px 4px",
+                    }}
+                    title="Delete"
+                  >✕</button>
+                </div>
+              </div>
+            );
+          })
+        )}
+        {templateStatus && (
+          <p style={{ fontSize: "11px", color: "#91a7ff" }}>{templateStatus}</p>
         )}
       </div>
 

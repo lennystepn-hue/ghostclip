@@ -14,6 +14,7 @@ import { FloatingWidget } from "./views/FloatingWidget";
 import { PinBoardView } from "./views/PinBoardView";
 import { CaptureToast } from "./components/CaptureToast";
 import { CommandPalette } from "./views/CommandPalette";
+import { TemplatePicker } from "./views/TemplatePicker";
 
 export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -25,6 +26,7 @@ export function App() {
   const [clipCount, setClipCount] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const prevView = useRef(activeView);
 
   const updateCounts = useCallback(async () => {
@@ -55,6 +57,28 @@ export function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, [isQuickPanel, isReplyPanel, isFloatingWidget]);
+
+  // Global Ctrl+Shift+T shortcut to open template picker
+  useEffect(() => {
+    if (isQuickPanel || isReplyPanel || isFloatingWidget) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "T") {
+        e.preventDefault();
+        setTemplatePickerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isQuickPanel, isReplyPanel, isFloatingWidget]);
+
+  // Listen for global shortcut:templates event from main process
+  useEffect(() => {
+    if (isQuickPanel || isReplyPanel || isFloatingWidget) return;
+    const api = (window as any).ghostclip;
+    if (!api?.onShortcutTemplates) return;
+    const cleanup = api.onShortcutTemplates(() => setTemplatePickerOpen(true));
+    return cleanup;
   }, [isQuickPanel, isReplyPanel, isFloatingWidget]);
 
   const handleViewChange = (view: string) => {
@@ -148,6 +172,12 @@ export function App() {
         open={cmdOpen}
         onClose={() => setCmdOpen(false)}
         onNavigate={handleViewChange}
+      />
+
+      {/* Template Picker (Ctrl+T) */}
+      <TemplatePicker
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
       />
     </div>
   );

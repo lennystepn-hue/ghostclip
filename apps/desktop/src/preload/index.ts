@@ -74,6 +74,7 @@ const api = {
   // Templates
   getTemplates: () => ipcRenderer.invoke("templates:list"),
   createTemplate: (name: string, content: string, category: string) => ipcRenderer.invoke("templates:create", name, content, category),
+  updateTemplate: (id: string, name: string, content: string, category: string) => ipcRenderer.invoke("templates:update", id, name, content, category),
   deleteTemplate: (id: string) => ipcRenderer.invoke("templates:delete", id),
   useTemplate: (id: string, variables: Record<string, string>) => ipcRenderer.invoke("templates:use", id, variables),
 
@@ -91,6 +92,13 @@ const api = {
   onActiveAppChange: (callback: (app: string) => void) => {
     ipcRenderer.on("context:activeApp", (_event, app) => callback(app));
     return () => ipcRenderer.removeAllListeners("context:activeApp");
+  },
+
+  // Template picker shortcut from global hotkey
+  onShortcutTemplates: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("shortcut:templates", listener);
+    return () => ipcRenderer.removeListener("shortcut:templates", listener);
   },
 
   // Auth
