@@ -5,7 +5,14 @@ interface SettingsState {
   notifications: boolean;
   screenContext: boolean;
   autoExpireSensitive: boolean;
+  autostart: boolean;
+  floatingWidget: boolean;
   aiModel: string;
+  toastEnabled: boolean;
+  toastPosition: string;
+  toastDuration: string;
+  toastFilter: string;
+  quietMode: boolean;
   [key: string]: any;
 }
 
@@ -26,6 +33,11 @@ export function SettingsView() {
     autostart: true,
     floatingWidget: true,
     aiModel: "claude-sonnet-4-6",
+    toastEnabled: true,
+    toastPosition: "bottom-right",
+    toastDuration: "2",
+    toastFilter: "all",
+    quietMode: false,
   });
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
@@ -44,6 +56,11 @@ export function SettingsView() {
           autostart: s.autostart !== "false",
           floatingWidget: s.floatingWidget !== "false",
           aiModel: s.aiModel || "claude-sonnet-4-6",
+          toastEnabled: s.toastEnabled !== "false",
+          toastPosition: s.toastPosition || "bottom-right",
+          toastDuration: s.toastDuration || "2",
+          toastFilter: s.toastFilter || "all",
+          quietMode: s.quietMode === "true",
         });
       }
       setLoading(false);
@@ -54,6 +71,11 @@ export function SettingsView() {
     const newVal = !settings[key];
     setSettings(prev => ({ ...prev, [key]: newVal }));
     await api?.updateSetting?.(key, String(newVal));
+  };
+
+  const updateSelect = async (key: string, value: string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    await api?.updateSetting?.(key, value);
   };
 
   const handleClearAll = async () => {
@@ -133,6 +155,61 @@ export function SettingsView() {
         <SettingToggle label="Sensible Daten automatisch loeschen"
           description="Passwoerter und Tokens nach 5 Minuten entfernen"
           checked={settings.autoExpireSensitive} onChange={() => toggle("autoExpireSensitive")} />
+      </div>
+
+      {/* Toast Notifications */}
+      <h2 style={sectionTitle}>Toast Notifications</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "28px" }}>
+        <SettingToggle label="Capture Toast" description="Show a small toast when GhostClip captures a clip"
+          checked={settings.toastEnabled} onChange={() => toggle("toastEnabled")} />
+        <SettingToggle label="Quiet Mode" description="Suppress toasts during presentations or focus sessions"
+          checked={settings.quietMode} onChange={() => toggle("quietMode")} />
+        <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>Position</p>
+            <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>Where toasts appear on screen</p>
+          </div>
+          <select
+            value={settings.toastPosition}
+            onChange={(e) => updateSelect("toastPosition", e.target.value)}
+            style={selectStyle}
+          >
+            <option value="bottom-right">Bottom Right</option>
+            <option value="top-right">Top Right</option>
+            <option value="bottom-left">Bottom Left</option>
+          </select>
+        </div>
+        <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>Duration</p>
+            <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>How long toasts stay visible</p>
+          </div>
+          <select
+            value={settings.toastDuration}
+            onChange={(e) => updateSelect("toastDuration", e.target.value)}
+            style={selectStyle}
+          >
+            <option value="1">1 second</option>
+            <option value="2">2 seconds</option>
+            <option value="3">3 seconds</option>
+          </select>
+        </div>
+        <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e8" }}>Show for</p>
+            <p style={{ fontSize: "11px", color: "#5c5c75", marginTop: "2px" }}>Which clip types trigger a toast</p>
+          </div>
+          <select
+            value={settings.toastFilter}
+            onChange={(e) => updateSelect("toastFilter", e.target.value)}
+            style={selectStyle}
+          >
+            <option value="all">All clips</option>
+            <option value="url">URLs only</option>
+            <option value="image">Images only</option>
+            <option value="text">Text only</option>
+          </select>
+        </div>
       </div>
 
       {/* AI Model */}
@@ -215,6 +292,19 @@ const cardStyle: React.CSSProperties = {
   padding: "12px 16px", borderRadius: "12px",
   background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
   border: "1px solid rgba(255,255,255,0.05)",
+};
+
+const selectStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "8px",
+  color: "#e0e0e8",
+  fontSize: "12px",
+  padding: "6px 10px",
+  cursor: "pointer",
+  outline: "none",
+  flexShrink: 0,
+  marginLeft: "12px",
 };
 
 function SettingToggle({ label, description, checked, onChange }: {

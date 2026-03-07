@@ -12,6 +12,7 @@ import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
 import { FloatingWidget } from "./views/FloatingWidget";
 import { PinBoardView } from "./views/PinBoardView";
+import { CaptureToast } from "./components/CaptureToast";
 
 export function App() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -121,6 +122,11 @@ export function App() {
           {renderView()}
         </div>
       </main>
+
+      {/* Capture toast — shown when a new clip is captured */}
+      <CaptureToast onOpenClips={() => {
+        handleViewChange("clips");
+      }} />
     </div>
   );
 }
