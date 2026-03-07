@@ -30,6 +30,7 @@ interface SettingsState {
   toastFilter: string;
   quietMode: boolean;
   autoActionsEnabled: boolean;
+  predictive_paste: boolean;
   [key: string]: any;
 }
 
@@ -129,6 +130,7 @@ export function SettingsView() {
     toastFilter: "all",
     quietMode: false,
     autoActionsEnabled: true,
+    predictive_paste: true,
   });
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
@@ -187,6 +189,7 @@ export function SettingsView() {
           toastFilter: s.toastFilter || "all",
           quietMode: s.quietMode === "true",
           autoActionsEnabled: s.autoActionsEnabled !== "false",
+          predictive_paste: s.predictive_paste !== "false",
           ...kindFlags,
         });
       }
@@ -418,6 +421,9 @@ export function SettingsView() {
         <SettingToggle label="Sensible Daten automatisch loeschen"
           description="Passwoerter und Tokens nach 5 Minuten entfernen"
           checked={settings.autoExpireSensitive} onChange={() => toggle("autoExpireSensitive")} />
+        <SettingToggle label="Predictive Paste"
+          description="Learn your copy-paste patterns and predict what you need next (all data stays local)"
+          checked={settings.predictive_paste} onChange={() => toggle("predictive_paste")} />
       </div>
 
       {/* Toast Notifications */}

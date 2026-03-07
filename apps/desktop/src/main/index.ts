@@ -7,6 +7,7 @@ import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
 import { toggleQuickPanel } from "./quick-panel";
 import { notifyClipCaptured, notify } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
+import { computePredictions } from "@ghostclip/shared";
 import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
@@ -49,6 +50,11 @@ import {
   getRecentClipsSummary,
   getUserProfile,
   getUsedReplyStyles,
+  recordPasteSequence,
+  recordHourlyPattern,
+  getPasteSequences,
+  getHourlyPatterns,
+  getRecentClipsForPrediction,
 } from "./db";
 
 // no-sandbox must be set via CLI flag or electron-flags.conf for root users
@@ -64,6 +70,9 @@ process.on("uncaughtException", (err) => {
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+
+// Predictive paste: track last pasted clip for sequence learning
+let lastPastedClipId: string | null = null;
 
 // OAuth token is now managed by claude-oauth.ts module
 
@@ -920,6 +929,38 @@ app.whenReady().then(() => {
   ipcMain.handle("clipboard:write", (_e, text: string) => {
     clipboard.writeText(text);
     return true;
+  });
+
+  // IPC: Record a paste event for predictive paste learning
+  ipcMain.handle("clips:recordPaste", (_e, clipId: string) => {
+    // Record sequence: last pasted -> this paste
+    if (lastPastedClipId && lastPastedClipId !== clipId) {
+      recordPasteSequence(lastPastedClipId, clipId, lastActiveApp || null);
+    }
+    // Record hourly usage pattern
+    recordHourlyPattern(clipId, new Date().getHours());
+    lastPastedClipId = clipId;
+    return true;
+  });
+
+  // IPC: Get predictions for the next clip
+  ipcMain.handle("clips:predictions", () => {
+    const predictiveEnabled = getSetting("predictive_paste", "true");
+    if (predictiveEnabled === "false") return [];
+
+    const sequences = getPasteSequences();
+    const recentClips = getRecentClipsForPrediction(50);
+    const hourlyPats = getHourlyPatterns();
+
+    return computePredictions({
+      lastClipId: lastPastedClipId,
+      sequences,
+      recentClips,
+      currentApp: lastActiveApp || null,
+      currentHour: new Date().getHours(),
+      hourlyPatterns: hourlyPats,
+      maxResults: 5,
+    });
   });
 
   // IPC: Clear all clips (panic button)

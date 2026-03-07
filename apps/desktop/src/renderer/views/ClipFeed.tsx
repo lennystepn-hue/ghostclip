@@ -1,10 +1,13 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useClips } from "../hooks/useClips";
 import {
   detectContentKind,
   getAutoActions,
   CONTENT_KIND_LABELS,
+  confidenceColor,
+  confidenceLabel,
 } from "@ghostclip/shared";
+import type { Prediction } from "@ghostclip/shared";
 
 type FilterType = "all" | "pinned" | "today" | "week" | "archive";
 
@@ -46,6 +49,18 @@ export function ClipFeed() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [prevClipCount, setPrevClipCount] = useState(0);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+
+  // Load predictions
+  const loadPredictions = useCallback(async () => {
+    const api = (window as any).ghostclip;
+    const preds = await api?.getPredictions?.();
+    setPredictions(preds || []);
+  }, []);
+
+  useEffect(() => {
+    loadPredictions();
+  }, [loadPredictions, clips.length]);
 
   // Listen for auto-reply suggestions
   useEffect(() => {
@@ -106,6 +121,10 @@ export function ClipFeed() {
 
   async function handleCopy(clipId: string) {
     await copyClip(clipId);
+    // Record paste for predictive learning
+    const api = (window as any).ghostclip;
+    await api?.recordPaste?.(clipId);
+    await loadPredictions();
     setCopiedId(clipId);
     setTimeout(() => setCopiedId(null), 1500);
   }
@@ -234,6 +253,61 @@ export function ClipFeed() {
                 <br />{r.text}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Predictive Paste: "You might need..." */}
+      {predictions.length > 0 && filter === "all" && !search && (
+        <div style={{
+          marginBottom: "16px", padding: "12px 16px", borderRadius: "14px",
+          background: "linear-gradient(135deg, rgba(74,222,128,0.06), rgba(66,99,235,0.04))",
+          border: "1px solid rgba(74,222,128,0.15)",
+          animation: "slideDown 0.3s ease-out",
+        }}>
+          <div style={{
+            fontSize: "11px", fontWeight: 700, color: "#4ade80",
+            letterSpacing: "0.05em", textTransform: "uppercase",
+            marginBottom: "8px", opacity: 0.85,
+          }}>
+            You might need...
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {predictions.slice(0, 3).map((pred) => {
+              const clip = clips.find((c) => c.id === pred.clipId);
+              if (!clip) return null;
+              return (
+                <button
+                  key={pred.clipId}
+                  onClick={() => handleCopy(pred.clipId)}
+                  style={{
+                    textAlign: "left", padding: "8px 12px", borderRadius: "10px",
+                    background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
+                    color: "#c4c4d4", fontSize: "12px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "8px",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                >
+                  <span style={{
+                    fontSize: "8px", fontWeight: 700,
+                    color: confidenceColor(pred.confidence),
+                    background: "rgba(0,0,0,0.2)",
+                    borderRadius: "3px", padding: "2px 5px",
+                    flexShrink: 0,
+                  }}>
+                    {confidenceLabel(pred.confidence)}
+                  </span>
+                  <span style={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    flex: 1,
+                  }}>
+                    {clip.summary || clip.content?.slice(0, 80)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
