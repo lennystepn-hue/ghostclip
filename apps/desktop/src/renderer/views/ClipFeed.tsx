@@ -1,5 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useClips } from "../hooks/useClips";
+import {
+  detectContentKind,
+  getAutoActions,
+  CONTENT_KIND_LABELS,
+} from "@ghostclip/shared";
 
 type FilterType = "all" | "pinned" | "today" | "week" | "archive";
 
@@ -541,6 +546,11 @@ function ClipItem({ clip, isExpanded, isNew, isCopied, onToggle, onCopy, onPin, 
             </div>
           )}
 
+          {/* AI Auto-Actions Panel */}
+          {clip.content && clip.type !== "image" && (
+            <AutoActionPanel content={clip.content} />
+          )}
+
           {/* AI Transform Buttons */}
           {clip.type === "text" && clip.content && (
             <TransformBar content={clip.content} />
@@ -769,6 +779,249 @@ function TransformBar({ content }: { content: string }) {
               background: "rgba(255,255,255,0.04)", border: "none", color: "#5c5c75", cursor: "pointer",
             }}>
               Schliessen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === AI Auto-Action Panel ===
+
+function AutoActionPanel({ content }: { content: string }) {
+  // All hooks must be called before any early return (Rules of Hooks)
+  const detected = useMemo(() => detectContentKind(content), [content]);
+  const [enabled, setEnabled] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Check if this content kind is enabled in settings
+  useEffect(() => {
+    const api = (window as any).ghostclip;
+    api?.getSettings?.().then((s: any) => {
+      if (!s) return;
+      const globalEnabled = s.autoActionsEnabled !== "false";
+      const kindEnabled = s[`autoAction_${detected.kind}`] !== "false";
+      setEnabled(globalEnabled && kindEnabled);
+    });
+  }, [detected.kind]);
+
+  // Early returns after all hooks
+  if (detected.kind === "text" || detected.kind === "url") return null;
+  if (!enabled) return null;
+
+  const actions = getAutoActions(detected);
+
+  async function runAction(actionType: string) {
+    const api = (window as any).ghostclip;
+    setActiveAction(actionType);
+    setResult(null);
+
+    try {
+      switch (actionType) {
+        case "format_json": {
+          const parsed = JSON.parse(content);
+          setResult(JSON.stringify(parsed, null, 2));
+          break;
+        }
+        case "validate_json": {
+          try {
+            JSON.parse(content);
+            setResult("Gültiges JSON");
+          } catch (e: any) {
+            setResult("Ungültiges JSON: " + e.message);
+          }
+          break;
+        }
+        case "format_xml": {
+          // Simple XML indent via regex
+          let depth = 0;
+          const formatted = content
+            .replace(/>\s*</g, ">\n<")
+            .split("\n")
+            .map((line) => {
+              const isClose = /^<\//.test(line.trim());
+              const isSelfClose = /\/>$/.test(line.trim());
+              if (isClose && depth > 0) depth--;
+              const indented = "  ".repeat(depth) + line.trim();
+              if (!isClose && !isSelfClose && /<[^/]/.test(line) && !/<[^/][^>]*>.*<\//.test(line)) depth++;
+              return indented;
+            })
+            .join("\n");
+          setResult(formatted);
+          break;
+        }
+        case "explain_cron": {
+          const cron = detected.metadata.cron as string;
+          const text = await api?.aiTransform?.(
+            `Cron expression: ${cron}`,
+            "explain",
+          );
+          setResult(text || "Cron-Ausdruck konnte nicht erklärt werden.");
+          break;
+        }
+        case "explain_regex": {
+          const pattern = detected.metadata.pattern as string;
+          const text = await api?.aiTransform?.(
+            `Regex pattern: ${pattern}`,
+            "explain",
+          );
+          setResult(text || "Regex konnte nicht erklärt werden.");
+          break;
+        }
+        case "test_regex": {
+          setResult("Paste text below to test against " + detected.metadata.pattern);
+          break;
+        }
+        case "search_error": {
+          const query = content.split("\n")[0].slice(0, 120);
+          api?.openUrl?.("https://stackoverflow.com/search?q=" + encodeURIComponent(query));
+          setResult("Stack Overflow Suche geöffnet.");
+          break;
+        }
+        case "ai_explain": {
+          const text = await api?.aiTransform?.(content.slice(0, 2000), "explain");
+          setResult(text || "Keine Erklärung verfügbar.");
+          break;
+        }
+        case "ai_review": {
+          const text = await api?.aiTransform?.(content.slice(0, 2000), "review");
+          setResult(text || "Kein Review verfügbar.");
+          break;
+        }
+        case "relative_time": {
+          const dt = detected.metadata.datetime as string;
+          const ms = Date.now() - new Date(dt).getTime();
+          const abs = Math.abs(ms);
+          const future = ms < 0;
+          let label: string;
+          if (abs < 60_000) label = "gerade eben";
+          else if (abs < 3_600_000) label = future ? `in ${Math.round(abs / 60_000)} Minuten` : `vor ${Math.round(abs / 60_000)} Minuten`;
+          else if (abs < 86_400_000) label = future ? `in ${Math.round(abs / 3_600_000)} Stunden` : `vor ${Math.round(abs / 3_600_000)} Stunden`;
+          else label = future ? `in ${Math.round(abs / 86_400_000)} Tagen` : `vor ${Math.round(abs / 86_400_000)} Tagen`;
+          setResult(label);
+          break;
+        }
+        case "convert_timezone": {
+          const dt = detected.metadata.datetime as string;
+          const date = new Date(dt);
+          if (isNaN(date.getTime())) {
+            setResult("Datum konnte nicht geparst werden.");
+          } else {
+            const utc = date.toUTCString();
+            const local = date.toLocaleString();
+            setResult(`UTC: ${utc}\nLokal: ${local}`);
+          }
+          break;
+        }
+        case "open_maps": {
+          const query = encodeURIComponent(content.slice(0, 200));
+          api?.openUrl?.("https://maps.google.com/maps?q=" + query);
+          setResult("In Google Maps geöffnet.");
+          break;
+        }
+        case "copy_formatted":
+        case "copy_hex": {
+          const val = (detected.metadata.phone ?? detected.metadata.hex ?? content) as string;
+          api?.writeClipboard?.(val);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+          setResult(null);
+          break;
+        }
+        case "contacts_template": {
+          const phone = detected.metadata.phone as string;
+          const vcf = `BEGIN:VCARD\nVERSION:3.0\nTEL:${phone}\nEND:VCARD`;
+          setResult(vcf);
+          break;
+        }
+        default:
+          break;
+      }
+    } catch (err: any) {
+      setResult("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  const kindLabel = CONTENT_KIND_LABELS[detected.kind];
+
+  return (
+    <div style={{ marginBottom: "10px" }}>
+      {/* Kind badge + action buttons */}
+      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center", marginBottom: result ? "8px" : 0 }}>
+        <span style={{
+          fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
+          color: "#a78bfa", background: "rgba(139,92,246,0.1)", padding: "2px 7px", borderRadius: "4px",
+          marginRight: "4px",
+        }}>
+          {kindLabel}
+        </span>
+
+        {/* Color preview for hex */}
+        {detected.kind === "color_hex" && (
+          <span style={{
+            display: "inline-block", width: "20px", height: "20px", borderRadius: "4px",
+            background: detected.metadata.hex as string,
+            border: "1px solid rgba(255,255,255,0.15)", flexShrink: 0,
+          }} title={detected.metadata.hex as string} />
+        )}
+
+        {actions.map((action) => (
+          <button
+            key={action.type}
+            onClick={() => runAction(action.type)}
+            disabled={activeAction !== null}
+            style={{
+              padding: "3px 10px", borderRadius: "14px", fontSize: "10px",
+              border: "1px solid rgba(139,92,246,0.2)",
+              background: activeAction === action.type ? "rgba(139,92,246,0.2)" : "rgba(139,92,246,0.07)",
+              color: activeAction === action.type ? "#c4b5fd" : "#a78bfa",
+              cursor: activeAction ? "wait" : "pointer",
+              fontWeight: 500, transition: "all 0.15s",
+              opacity: activeAction && activeAction !== action.type ? 0.4 : 1,
+            }}
+          >
+            {activeAction === action.type ? "..." : action.label}
+          </button>
+        ))}
+
+        {copied && (
+          <span style={{ fontSize: "10px", color: "#22c55e", marginLeft: "4px" }}>Kopiert!</span>
+        )}
+      </div>
+
+      {/* Result display */}
+      {result && (
+        <div style={{
+          padding: "10px 14px", borderRadius: "10px",
+          background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)",
+          animation: "fadeIn 0.2s ease",
+        }}>
+          <pre style={{
+            fontSize: "12px", color: "#c4c4d4", lineHeight: 1.6, margin: 0,
+            whiteSpace: "pre-wrap", wordBreak: "break-word",
+            maxHeight: "150px", overflowY: "auto",
+          }}>{result}</pre>
+          <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+            <button onClick={() => {
+              (window as any).ghostclip?.writeClipboard?.(result);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }} style={{
+              padding: "4px 12px", borderRadius: "8px", fontSize: "10px", fontWeight: 600,
+              background: "rgba(139,92,246,0.15)", border: "none", color: "#a78bfa", cursor: "pointer",
+            }}>
+              Ergebnis kopieren
+            </button>
+            <button onClick={() => setResult(null)} style={{
+              padding: "4px 12px", borderRadius: "8px", fontSize: "10px",
+              background: "rgba(255,255,255,0.04)", border: "none", color: "#5c5c75", cursor: "pointer",
+            }}>
+              Schließen
             </button>
           </div>
         </div>
