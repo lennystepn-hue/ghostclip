@@ -4,15 +4,41 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.6.2)'
+        required: false
 
 permissions:
   contents: write
 
 jobs:
+  resolve-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
   build-linux:
+    needs: [resolve-tag]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag || github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -29,9 +55,12 @@ jobs:
             apps/desktop/release/latest-linux.yml
 
   build-mac:
+    needs: [resolve-tag]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag || github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -44,19 +73,6 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         timeout-minutes: 10
-      # TODO: Re-enable notarization once Apple approves the dev account
-      # - name: Notarize & staple
-      #   run: |
-      #     set -o pipefail
-      #     DMG=$(ls apps/desktop/release/GhostClip-*.dmg)
-      #     xcrun notarytool submit "$DMG" \
-      #       --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-      #       --team-id "$APPLE_TEAM_ID" --wait
-      #     xcrun stapler staple "$DMG"
-      #   env:
-      #     APPLE_ID: ${{ secrets.APPLE_ID }}
-      #     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: mac
@@ -66,9 +82,12 @@ jobs:
             apps/desktop/release/latest-mac.yml
 
   build-windows:
+    needs: [resolve-tag]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag || github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -84,7 +103,7 @@ jobs:
             apps/desktop/release/latest.yml
 
   release:
-    needs: [build-linux, build-mac, build-windows]
+    needs: [resolve-tag, build-linux, build-mac, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -94,6 +113,7 @@ jobs:
       - run: ls -la dist/
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
           files: dist/**/*
           generate_release_notes: true
           draft: false
