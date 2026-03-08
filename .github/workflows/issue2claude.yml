@@ -166,3 +166,66 @@ jobs:
           issue-body: ${{ github.event.issue.body }}
           comment-body: ${{ github.event.comment.body }}
           repo: ${{ github.repository }}
+
+  # Build & Release: comment "claude-build" on any issue to trigger
+  build-release:
+    if: |
+      github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, 'claude-build') &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: React to comment
+        run: |
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=rocket
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version, tag & push
+        run: |
+          git config user.email "issue2claude[bot]@users.noreply.github.com"
+          git config user.name "Issue2Claude"
+
+          # Read current version from apps/desktop/package.json
+          CURRENT=$(node -p "require('./apps/desktop/package.json').version")
+          echo "Current version: $CURRENT"
+
+          # Bump patch version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          echo "New version: $NEW_VERSION"
+
+          # Update package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('apps/desktop/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Commit, tag, push
+          git add apps/desktop/package.json
+          git commit -m "chore: bump version to v$NEW_VERSION [claude-build]"
+          git tag "v$NEW_VERSION"
+          git push origin master --tags
+
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Comment build status
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "**Issue2Claude Build** — v${{ env.VERSION }} tagged and pushed. Release workflow is building Linux, Mac & Windows. Track it [here](https://github.com/${{ github.repository }}/actions/workflows/release.yml)."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
