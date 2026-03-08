@@ -217,10 +217,7 @@ jobs:
 
           echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
-      - name: Comment build status
-        continue-on-error: true
-        run: |
-          gh issue comment ${{ github.event.issue.number }} \
-            --body "**Issue2Claude Build** — v${{ env.VERSION }} tagged and pushed. Release workflow is building Linux, Mac & Windows. Track it [here](https://github.com/${{ github.repository }}/actions/workflows/release.yml)."
+      - name: Trigger release build
+        run: gh workflow run release.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
