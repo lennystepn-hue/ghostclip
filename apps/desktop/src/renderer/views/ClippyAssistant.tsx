@@ -129,7 +129,7 @@ export function ClippyAssistant() {
   // Listen for expand/collapse
   useEffect(() => {
     if (!api?.onWidgetExpanded) return;
-    return api.onWidgetExpanded((_: any, isExp: boolean) => setExpanded(isExp));
+    return api.onWidgetExpanded((isExp: boolean) => setExpanded(isExp));
   }, []);
 
   // Load clips when expanded
