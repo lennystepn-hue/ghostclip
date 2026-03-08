@@ -4,16 +4,16 @@ import { join } from "path";
 let floatingWindow: BrowserWindow | null = null;
 let isExpanded = false;
 
-// Clippy character: 124x93 sprite + padding
-const COLLAPSED_SIZE = { width: 140, height: 120 };
-// Expanded: Clippy + panel
-const EXPANDED_SIZE = { width: 420, height: 500 };
+// Collapsed: Clippy sprite (124x93) + speech bubble space above
+const COLLAPSED_SIZE = { width: 260, height: 280 };
+// Expanded: full panel
+const EXPANDED_SIZE = { width: 420, height: 540 };
 
 function getPosition(size: { width: number; height: number }) {
   const { workArea } = screen.getPrimaryDisplay();
   return {
-    x: workArea.x + workArea.width - size.width - 16,
-    y: workArea.y + workArea.height - size.height - 16,
+    x: workArea.x + workArea.width - size.width - 8,
+    y: workArea.y + workArea.height - size.height - 8,
   };
 }
 
@@ -31,8 +31,7 @@ export function createFloatingWidget() {
     x: pos.x,
     y: pos.y,
     frame: false,
-    transparent: process.platform !== "win32",
-    backgroundColor: process.platform === "win32" ? "#00000000" : undefined,
+    transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
