@@ -10,7 +10,7 @@ import { ChatView } from "./views/ChatView";
 import { QuickPanelView } from "./views/QuickPanelView";
 import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
-import { FloatingWidget } from "./views/FloatingWidget";
+import { ClippyAssistant } from "./views/ClippyAssistant";
 import { PinBoardView } from "./views/PinBoardView";
 import { TopicsView } from "./views/TopicsView";
 import { CaptureToast } from "./components/CaptureToast";
@@ -115,7 +115,7 @@ export function App() {
 
   if (isQuickPanel) return <QuickPanelView />;
   if (isReplyPanel) return <ReplyPanelView />;
-  if (isFloatingWidget) return <FloatingWidget />;
+  if (isFloatingWidget) return <ClippyAssistant />;
 
   const renderView = () => {
     switch (activeView) {

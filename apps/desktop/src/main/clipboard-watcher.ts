@@ -143,33 +143,65 @@ export class ClipboardWatcher {
       const platform = process.platform;
 
       if (platform === "win32") {
-        // Windows: read file names via CF_HDROP format
+        // Windows: try multiple clipboard formats for file detection
+        // 1. Try FileNameW (UTF-16LE null-terminated strings)
         const raw = clipboard.readBuffer("FileNameW");
         if (raw && raw.length > 0) {
-          // FileNameW is null-terminated UTF-16LE strings
           const decoded = raw.toString("utf16le");
           const paths = decoded.split("\0").filter((p) => p.length > 0);
           if (paths.length > 0 && paths.some((p) => /^[A-Z]:\\/i.test(p))) {
+            console.log("[Watcher] Windows file detected via FileNameW:", paths);
             return paths;
           }
         }
+
+        // 2. Fallback: check if clipboard text looks like a Windows file path
+        // Explorer sometimes puts the path as text too
+        const text = clipboard.readText();
+        if (text) {
+          const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+          const allArePaths = lines.length > 0 && lines.every((l) =>
+            /^[A-Z]:\\.+\.\w{1,10}$/i.test(l.trim())
+          );
+          if (allArePaths) {
+            // Verify at least one path has a real file extension (not just random text)
+            const hasFileExt = lines.some((l) =>
+              /\.(xlsx?|pdf|docx?|pptx?|csv|txt|png|jpg|jpeg|gif|zip|rar|7z|mp[34]|avi|mov|exe|msi)$/i.test(l.trim())
+            );
+            if (hasFileExt) {
+              console.log("[Watcher] Windows file detected via text fallback:", lines);
+              return lines.map((l) => l.trim());
+            }
+          }
+        }
       } else if (platform === "darwin") {
-        // macOS: read public.file-url format
+        // macOS: read public.file-url format (single file)
         const raw = clipboard.read("public.file-url");
         if (raw && raw.startsWith("file://")) {
           try {
             const filePath = decodeURIComponent(new URL(raw).pathname);
-            if (filePath) return [filePath];
+            if (filePath) {
+              console.log("[Watcher] macOS file detected via public.file-url:", filePath);
+              return [filePath];
+            }
           } catch { /* ignore decode errors */ }
         }
-        // Also try NSFilenamesPboardType (multiple files)
-        const text = clipboard.readText();
-        if (text && text.startsWith("/") && !text.includes("\n")) {
-          // Could be a file path from Finder — but only treat as file if
-          // the file-url format was also present, to avoid false positives
-        }
+
+        // macOS: try NSFilenamesPboardType for multiple files (XML plist format)
+        try {
+          const plistRaw = clipboard.read("NSFilenamesPboardType");
+          if (plistRaw && plistRaw.includes("<string>")) {
+            const paths = [...plistRaw.matchAll(/<string>([^<]+)<\/string>/g)]
+              .map((m) => m[1])
+              .filter((p) => p.startsWith("/"));
+            if (paths.length > 0) {
+              console.log("[Watcher] macOS files detected via NSFilenamesPboardType:", paths);
+              return paths;
+            }
+          }
+        } catch { /* ignore */ }
       } else {
-        // Linux: check for x-special/gnome-copied-files or similar
+        // Linux: check for x-special/gnome-copied-files (GNOME/GTK)
         const gnomeCopied = clipboard.readBuffer("x-special/gnome-copied-files");
         if (gnomeCopied && gnomeCopied.length > 0) {
           const content = gnomeCopied.toString("utf8");
@@ -182,7 +214,10 @@ export class ClipboardWatcher {
               return "";
             }
           }).filter((p) => p.length > 0);
-          if (paths.length > 0) return paths;
+          if (paths.length > 0) {
+            console.log("[Watcher] Linux file detected via gnome-copied-files:", paths);
+            return paths;
+          }
         }
 
         // KDE uses text/uri-list
@@ -197,7 +232,10 @@ export class ClipboardWatcher {
               return "";
             }
           }).filter((p) => p.length > 0);
-          if (paths.length > 0) return paths;
+          if (paths.length > 0) {
+            console.log("[Watcher] Linux file detected via text/uri-list:", paths);
+            return paths;
+          }
         }
       }
     } catch (err: any) {

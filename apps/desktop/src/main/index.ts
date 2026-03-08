@@ -78,7 +78,7 @@ import {
   searchTopics,
 } from "./db";
 
-// no-sandbox must be set via CLI flag or electron-flags.conf for root users
+// Note: running as root requires --no-sandbox flag (set via CLI or electron-flags.conf)
 
 // Prevent crash on EPIPE/broken pipe errors
 process.on("uncaughtException", (err) => {

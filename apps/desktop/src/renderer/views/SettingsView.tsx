@@ -411,7 +411,7 @@ export function SettingsView() {
           checked={settings.notifications} onChange={() => toggle("notifications")} />
         <SettingToggle label="Autostart" description="GhostClip beim Systemstart automatisch starten"
           checked={settings.autostart} onChange={() => toggle("autostart")} />
-        <SettingToggle label="Floating Widget" description="Schwebendes Panel unten links fuer schnellen Zugriff"
+        <SettingToggle label="Clippy Assistent" description="Clippy Bueroklammen-Assistent unten rechts"
           checked={settings.floatingWidget} onChange={() => toggle("floatingWidget")} />
       </div>
 

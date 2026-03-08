@@ -57,7 +57,7 @@ function rebuildMenu(mainWindow: BrowserWindow | null) {
       },
     },
     {
-      label: "Floating Widget",
+      label: "Clippy Assistent",
       click: () => toggleFloatingWidget(),
     },
     { type: "separator" },

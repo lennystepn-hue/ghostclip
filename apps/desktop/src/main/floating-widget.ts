@@ -4,8 +4,18 @@ import { join } from "path";
 let floatingWindow: BrowserWindow | null = null;
 let isExpanded = false;
 
-const COLLAPSED_SIZE = { width: 52, height: 52 };
-const EXPANDED_SIZE = { width: 360, height: 420 };
+// Clippy character: 124x93 sprite + padding
+const COLLAPSED_SIZE = { width: 140, height: 120 };
+// Expanded: Clippy + panel
+const EXPANDED_SIZE = { width: 420, height: 500 };
+
+function getPosition(size: { width: number; height: number }) {
+  const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + workArea.width - size.width - 16,
+    y: workArea.y + workArea.height - size.height - 16,
+  };
+}
 
 export function createFloatingWidget() {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
@@ -13,20 +23,21 @@ export function createFloatingWidget() {
     return floatingWindow;
   }
 
-  const { workAreaSize } = screen.getPrimaryDisplay();
+  const pos = getPosition(COLLAPSED_SIZE);
 
   floatingWindow = new BrowserWindow({
     width: COLLAPSED_SIZE.width,
     height: COLLAPSED_SIZE.height,
-    x: 16,
-    y: workAreaSize.height - COLLAPSED_SIZE.height - 16,
+    x: pos.x,
+    y: pos.y,
     frame: false,
-    transparent: true,
+    transparent: process.platform !== "win32",
+    backgroundColor: process.platform === "win32" ? "#00000000" : undefined,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
-    focusable: false, // Don't steal focus when collapsed
+    focusable: false,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -39,8 +50,6 @@ export function createFloatingWidget() {
   });
 
   floatingWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-  // Let clicks pass through transparent areas
   floatingWindow.setIgnoreMouseEvents(true, { forward: true });
 
   floatingWindow.on("closed", () => {
@@ -67,14 +76,13 @@ export function expandWidget() {
   if (!floatingWindow || floatingWindow.isDestroyed() || isExpanded) return;
   isExpanded = true;
 
-  const { workAreaSize } = screen.getPrimaryDisplay();
+  const pos = getPosition(EXPANDED_SIZE);
   floatingWindow.setBounds({
-    x: 16,
-    y: workAreaSize.height - EXPANDED_SIZE.height - 16,
+    x: pos.x,
+    y: pos.y,
     width: EXPANDED_SIZE.width,
     height: EXPANDED_SIZE.height,
   });
-  // When expanded: capture mouse events, be focusable
   floatingWindow.setIgnoreMouseEvents(false);
   floatingWindow.setFocusable(true);
   floatingWindow.focus();
@@ -85,14 +93,13 @@ export function collapseWidget() {
   if (!floatingWindow || floatingWindow.isDestroyed() || !isExpanded) return;
   isExpanded = false;
 
-  const { workAreaSize } = screen.getPrimaryDisplay();
+  const pos = getPosition(COLLAPSED_SIZE);
   floatingWindow.setBounds({
-    x: 16,
-    y: workAreaSize.height - COLLAPSED_SIZE.height - 16,
+    x: pos.x,
+    y: pos.y,
     width: COLLAPSED_SIZE.width,
     height: COLLAPSED_SIZE.height,
   });
-  // When collapsed: let clicks pass through, don't steal focus
   floatingWindow.setIgnoreMouseEvents(true, { forward: true });
   floatingWindow.setFocusable(false);
   floatingWindow.webContents.send("widget:expanded", false);
@@ -106,18 +113,14 @@ export function sendToWidget(channel: string, data: any) {
 
 export function setupWidgetIPC() {
   ipcMain.on("widget:toggle-expand", () => {
-    if (isExpanded) {
-      collapseWidget();
-    } else {
-      expandWidget();
-    }
+    if (isExpanded) collapseWidget();
+    else expandWidget();
   });
 
   ipcMain.on("widget:collapse", () => {
     collapseWidget();
   });
 
-  // Mouse enter/leave on the collapsed button — temporarily capture events
   ipcMain.on("widget:mouse-enter", () => {
     if (floatingWindow && !floatingWindow.isDestroyed() && !isExpanded) {
       floatingWindow.setIgnoreMouseEvents(false);

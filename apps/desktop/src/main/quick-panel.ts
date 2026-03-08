@@ -11,12 +11,11 @@ export function createQuickPanel(): BrowserWindow {
     return quickPanel;
   }
 
-  const { x, y, width } = screen.getCursorScreenPoint()
-    ? screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
-    : screen.getPrimaryDisplay().workArea;
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const { x, y, width } = display.workArea;
 
-  // Target 60% of the display width; clamp to a comfortable min/max
-  const panelWidth  = Math.round(Math.min(Math.max(width * 0.6, 720), 1100));
+  const panelWidth = Math.round(Math.min(Math.max(width * 0.6, 720), 1100));
   const panelHeight = 560;
 
   quickPanel = new BrowserWindow({
@@ -28,7 +27,9 @@ export function createQuickPanel(): BrowserWindow {
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    transparent: true,
+    // Windows fix: use backgroundColor instead of transparent for reliability
+    transparent: process.platform !== "win32",
+    backgroundColor: process.platform === "win32" ? "#00000000" : undefined,
     show: false,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -37,20 +38,36 @@ export function createQuickPanel(): BrowserWindow {
     },
   });
 
-  // Load the same renderer but with a query parameter
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     quickPanel.loadURL(process.env.ELECTRON_RENDERER_URL + "?quickpanel=true");
   } else {
-    quickPanel.loadFile(join(__dirname, "../renderer/index.html"), { query: { quickpanel: "true" } });
+    quickPanel.loadFile(join(__dirname, "../renderer/index.html"), {
+      query: { quickpanel: "true" },
+    });
   }
 
   quickPanel.on("ready-to-show", () => {
-    quickPanel?.show();
-    quickPanel?.focus();
+    if (!quickPanel || quickPanel.isDestroyed()) return;
+    quickPanel.show();
+    // Windows: delay focus to avoid blur-on-show race condition
+    setTimeout(() => {
+      if (quickPanel && !quickPanel.isDestroyed()) {
+        quickPanel.focus();
+      }
+    }, process.platform === "win32" ? 100 : 0);
   });
 
   quickPanel.on("blur", () => {
-    quickPanel?.hide();
+    // Small delay: prevents instant close on Windows when focus shifts briefly
+    setTimeout(() => {
+      if (quickPanel && !quickPanel.isDestroyed() && !quickPanel.isFocused()) {
+        quickPanel.hide();
+      }
+    }, 80);
+  });
+
+  quickPanel.on("closed", () => {
+    quickPanel = null;
   });
 
   return quickPanel;
