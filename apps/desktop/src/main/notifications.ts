@@ -20,8 +20,9 @@ export function notify({ type, title, body, onClick }: NotifyOptions) {
 
   if (!Notification.isSupported()) return;
 
+  let notification: Notification | null = null;
   try {
-    const notification = new Notification({
+    notification = new Notification({
       title,
       body,
       silent: type === "clip",
@@ -35,10 +36,11 @@ export function notify({ type, title, body, onClick }: NotifyOptions) {
     notification.show();
   } catch {
     // Notification failed (e.g. Windows without app shortcut in Start Menu)
+    return;
   }
 
   // Auto-dismiss clip notifications after 2s
-  if (type === "clip") {
+  if (type === "clip" && notification) {
     setTimeout(() => notification.close(), 2000);
   }
 }

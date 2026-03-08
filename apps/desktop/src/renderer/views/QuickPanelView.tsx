@@ -82,7 +82,7 @@ export function QuickPanelView() {
     }
     if (parsed.app) {
       list = list.filter((c) =>
-        c.source_app?.toLowerCase().includes(parsed.app!)
+        c.sourceApp?.toLowerCase().includes(parsed.app!)
       );
     }
     if (parsed.type) {
@@ -617,11 +617,11 @@ export function QuickPanelView() {
 
               {/* Metadata */}
               <div style={{ fontSize: "10px", color: "#3a3a52", marginTop: "2px" }}>
-                {highlightedClip.created_at &&
-                  new Date(highlightedClip.created_at).toLocaleString()}
-                {highlightedClip.source_app && (
+                {highlightedClip.createdAt &&
+                  new Date(highlightedClip.createdAt).toLocaleString()}
+                {highlightedClip.sourceApp && (
                   <span style={{ marginLeft: "8px" }}>
-                    from {highlightedClip.source_app}
+                    from {highlightedClip.sourceApp}
                   </span>
                 )}
               </div>

@@ -139,7 +139,6 @@ const api = {
   aiStatus: () => ipcRenderer.invoke("ai:status"),
   oauthStatus: () => ipcRenderer.invoke("oauth:status"),
   oauthConnect: () => ipcRenderer.invoke("oauth:connect"),
-  oauthRefresh: () => ipcRenderer.invoke("oauth:refresh"),
   setApiKey: (key: string) => ipcRenderer.invoke("ai:setApiKey", key),
   removeApiKey: () => ipcRenderer.invoke("ai:removeApiKey"),
 
