@@ -338,6 +338,21 @@ app.whenReady().then(() => {
     sendToWidget("clip:new", clip);
     notifyClipCaptured(clip.summary, clip.type);
 
+    // Generate AI-powered Clippy comment (async, non-blocking)
+    const creds = getAiCredentials();
+    if (creds.oauthToken || creds.apiKey) {
+      import("@ghostclip/ai-client").then(({ generateClippyComment }) =>
+        generateClippyComment({
+          clipContent: clip.content,
+          clipType: clip.type,
+          clipSummary: clip.summary,
+          ...creds,
+        }).then((comment) => {
+          if (comment) sendToWidget("clippy:comment", comment);
+        }).catch((err) => console.error("Clippy comment failed:", err.message))
+      );
+    }
+
     // Smart Clipboard Chains: detect copy sequences
     try {
       const recentForChain = getRecentClipsForPrediction(20);
@@ -888,7 +903,7 @@ app.whenReady().then(() => {
         if (c.summary) parts.push(`Summary: ${c.summary}`);
         if (c.tags?.length) parts.push(`Tags: ${c.tags.join(", ")}`);
         if (c.mood) parts.push(`Mood: ${c.mood}`);
-        if (c.content) parts.push(`Content: ${c.content.slice(0, 800)}`);
+        if (c.content) parts.push(`Content: ${c.content.slice(0, 4000)}`);
         return parts.join(" | ");
       };
 

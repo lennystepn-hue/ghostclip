@@ -9,7 +9,7 @@ html, body, #root {
 }
 
 body {
-  user-select: none;
+  user-select: text;
 }
 
 /* Only the title bar is draggable, not the whole body */

@@ -49,7 +49,6 @@ export function createFloatingWidget() {
   });
 
   floatingWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  floatingWindow.setIgnoreMouseEvents(true, { forward: true });
 
   floatingWindow.on("closed", () => {
     floatingWindow = null;
@@ -99,7 +98,6 @@ export function collapseWidget() {
     width: COLLAPSED_SIZE.width,
     height: COLLAPSED_SIZE.height,
   });
-  floatingWindow.setIgnoreMouseEvents(true, { forward: true });
   floatingWindow.setFocusable(false);
   floatingWindow.webContents.send("widget:expanded", false);
 }
@@ -120,15 +118,4 @@ export function setupWidgetIPC() {
     collapseWidget();
   });
 
-  ipcMain.on("widget:mouse-enter", () => {
-    if (floatingWindow && !floatingWindow.isDestroyed() && !isExpanded) {
-      floatingWindow.setIgnoreMouseEvents(false);
-    }
-  });
-
-  ipcMain.on("widget:mouse-leave", () => {
-    if (floatingWindow && !floatingWindow.isDestroyed() && !isExpanded) {
-      floatingWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
-  });
 }

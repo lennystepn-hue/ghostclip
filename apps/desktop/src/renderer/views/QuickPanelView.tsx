@@ -40,9 +40,7 @@ const kbdStyle: React.CSSProperties = {
 
 export function QuickPanelView() {
   const [clips, setClips] = useState<any[]>([]);
-  const [search, setSearch] = useState<string>(() => {
-    try { return localStorage.getItem(LAST_SEARCH_KEY) || ""; } catch { return ""; }
-  });
+  const [search, setSearch] = useState<string>("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   // Set of clip IDs chosen for multi-paste
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -131,12 +129,6 @@ export function QuickPanelView() {
 
   // Currently highlighted clip (drives the preview pane)
   const highlightedClip: any = displayList[selectedIndex] ?? null;
-
-  // ── Persistence ──────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    try { localStorage.setItem(LAST_SEARCH_KEY, search); } catch {}
-  }, [search]);
 
   // Reset cursor, multi-select, and transform overlay when search changes
   useEffect(() => {

@@ -140,12 +140,21 @@ export function ClippyAssistant() {
     });
   }, [expanded]);
 
-  // New clip → Clippy reacts
+  // New clip → Clippy reacts (with AI comment if available)
   useEffect(() => {
     if (!api?.onClipNew) return;
     return api.onClipNew((clip: RecentClip) => {
       setRecentClips((prev) => [clip, ...prev].slice(0, 8));
+      // Show a quick static tip first, AI comment will replace it
       showSpeech(getRandomTip(clip.type || "text"), "Wave", 5000);
+    });
+  }, [showSpeech]);
+
+  // AI-generated Clippy comments (sent from main process)
+  useEffect(() => {
+    if (!api?.onClippyComment) return;
+    return api.onClippyComment((comment: string) => {
+      if (comment) showSpeech(comment, "Thinking", 8000);
     });
   }, [showSpeech]);
 
@@ -169,8 +178,6 @@ export function ClippyAssistant() {
     setTimeout(() => setCopied(null), 1500);
   };
 
-  const onMouseEnter = () => api?.widgetMouseEnter?.();
-  const onMouseLeave = () => api?.widgetMouseLeave?.();
 
   // === COLLAPSED: Clippy character with speech bubble ===
   if (!expanded) {
@@ -183,8 +190,6 @@ export function ClippyAssistant() {
           WebkitAppRegion: "no-drag" as any,
           overflow: "visible",
         }}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
       >
         {/* Speech Bubble — positioned above Clippy */}
         {speechText && (

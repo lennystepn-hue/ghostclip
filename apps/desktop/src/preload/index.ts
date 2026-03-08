@@ -200,6 +200,10 @@ const api = {
     ipcRenderer.on("widget:expanded", (_event, expanded) => callback(expanded));
     return () => ipcRenderer.removeAllListeners("widget:expanded");
   },
+  onClippyComment: (callback: (comment: string) => void) => {
+    ipcRenderer.on("clippy:comment", (_event, comment) => callback(comment));
+    return () => ipcRenderer.removeAllListeners("clippy:comment");
+  },
 };
 
 contextBridge.exposeInMainWorld("ghostclip", api);
