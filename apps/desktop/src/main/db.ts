@@ -622,3 +622,23 @@ export function getRecentClipsForPrediction(limit = 50): { id: string; content: 
     createdAt: r.created_at,
   }));
 }
+
+
+// Clipboard chains: save a detected chain as a collection
+export function saveChainAsCollection(id: string, name: string, clipIds: string[], chainType: string) {
+  const icon = chainType === "template" ? "📋" : chainType === "collection" ? "📚" : "🔗";
+  db.prepare("INSERT INTO collections (id, name, icon, clip_ids, created_at) VALUES (?, ?, ?, ?, ?)").run(
+    id, name, icon, JSON.stringify(clipIds), new Date().toISOString(),
+  );
+}
+
+// Clipboard chains: get clips by IDs in order
+export function getClipsByIds(ids: string[]): any[] {
+  if (ids.length === 0) return [];
+  const capped = ids.slice(0, 100);
+  const placeholders = capped.map(() => "?").join(",");
+  const rows = db.prepare(`SELECT * FROM clips WHERE id IN (${placeholders})`).all(...capped) as ClipRow[];
+  const clipMap = new Map(rows.map(r => [r.id, rowToClip(r)]));
+  // Return in the order of the input IDs
+  return capped.map(id => clipMap.get(id)).filter(Boolean);
+}
