@@ -54,6 +54,7 @@ function pushRecent(id: string) {
 
 const NAV_ITEMS = [
   { id: "nav:clips", label: "Clips", icon: "📋", view: "clips" },
+  { id: "nav:pinboard", label: "Pin Board", icon: "📌", view: "pinboard" },
   { id: "nav:tags", label: "Tags", icon: "🏷", view: "tags" },
   { id: "nav:collections", label: "Collections", icon: "📁", view: "collections" },
   { id: "nav:smart", label: "Smart View", icon: "🔮", view: "smart" },
@@ -190,9 +191,9 @@ export function CommandPalette({ open, onClose, onNavigate }: CommandPaletteProp
       setClips(c || []);
       setCollections(col || []);
       setTemplates(tmpl || []);
-      // getTags returns objects with .name or just strings
+      // getTags returns objects with { tag, count }
       setTags(
-        (t || []).map((tag: any) => (typeof tag === "string" ? tag : tag.name)).filter(Boolean)
+        (t || []).map((tag: any) => (typeof tag === "string" ? tag : tag.tag)).filter(Boolean)
       );
     });
   }, [open]);

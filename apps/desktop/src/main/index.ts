@@ -232,7 +232,7 @@ app.whenReady().then(() => {
     console.log("Anthropic API key loaded");
   }
 
-  // Screen context: detect active window
+  // Screen context: detect active window (cross-platform)
   let lastActiveApp = "";
   function getActiveWindow(): string {
     try {
@@ -242,6 +242,20 @@ app.whenReady().then(() => {
           timeout: 2000,
           stdio: ["pipe", "pipe", "ignore"],
         }).trim();
+        return name;
+      }
+      if (process.platform === "darwin") {
+        const name = execSync(
+          `osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`,
+          { encoding: "utf-8", timeout: 2000, stdio: ["pipe", "pipe", "ignore"] },
+        ).trim();
+        return name;
+      }
+      if (process.platform === "win32") {
+        const name = execSync(
+          `powershell -NoProfile -Command "try { Add-Type -MemberDefinition '[DllImport(\\\"user32.dll\\\")] public static extern IntPtr GetForegroundWindow();' -Name Win32 -Namespace Temp -ErrorAction Stop } catch {}; (Get-Process | Where-Object {$_.MainWindowHandle -eq [Temp.Win32]::GetForegroundWindow()}).MainWindowTitle"`,
+          { encoding: "utf-8", timeout: 3000, stdio: ["pipe", "pipe", "ignore"] },
+        ).trim();
         return name;
       }
       return "";

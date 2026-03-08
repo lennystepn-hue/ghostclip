@@ -152,6 +152,19 @@ export function initDb() {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_work_ctx_active ON work_contexts(active)`);
 
+  // Clipboard rules: conditional clipboard automation
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS clipboard_rules (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      condition_type TEXT NOT NULL,
+      condition_value TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      action_value TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL
+    )
+  `);
   return db;
 }
 
@@ -547,18 +560,6 @@ export function incrementTemplateUse(id: string) {
 
 // Clipboard Rules
 export function getRules(): any[] {
-  try {
-    db.exec(`CREATE TABLE IF NOT EXISTS clipboard_rules (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      condition_type TEXT NOT NULL,
-      condition_value TEXT NOT NULL,
-      action_type TEXT NOT NULL,
-      action_value TEXT NOT NULL,
-      enabled INTEGER DEFAULT 1,
-      created_at TEXT NOT NULL
-    )`);
-  } catch {}
   return (db.prepare("SELECT * FROM clipboard_rules ORDER BY created_at DESC").all() as any[]).map(r => ({
     id: r.id, name: r.name, conditionType: r.condition_type, conditionValue: r.condition_value,
     actionType: r.action_type, actionValue: r.action_value, enabled: !!r.enabled, createdAt: r.created_at,
@@ -566,12 +567,6 @@ export function getRules(): any[] {
 }
 
 export function createRule(id: string, name: string, conditionType: string, conditionValue: string, actionType: string, actionValue: string) {
-  try {
-    db.exec(`CREATE TABLE IF NOT EXISTS clipboard_rules (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL, condition_type TEXT NOT NULL, condition_value TEXT NOT NULL,
-      action_type TEXT NOT NULL, action_value TEXT NOT NULL, enabled INTEGER DEFAULT 1, created_at TEXT NOT NULL
-    )`);
-  } catch {}
   db.prepare("INSERT INTO clipboard_rules (id, name, condition_type, condition_value, action_type, action_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
     id, name, conditionType, conditionValue, actionType, actionValue, new Date().toISOString(),
   );
