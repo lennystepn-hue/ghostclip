@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { join } from "path";
 import { app } from "electron";
+import type { WorkContext } from "@ghostclip/shared";
 
 let db: Database.Database;
 
@@ -134,6 +135,22 @@ export function initDb() {
       UNIQUE(clip_id, hour)
     )
   `);
+
+  // Work context detection: track work sessions
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_contexts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tags TEXT DEFAULT '[]',
+      source_apps TEXT DEFAULT '[]',
+      clip_ids TEXT DEFAULT '[]',
+      started_at TEXT NOT NULL,
+      last_active_at TEXT NOT NULL,
+      active INTEGER DEFAULT 0
+    )
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_work_ctx_active ON work_contexts(active)`);
 
   return db;
 }
@@ -623,6 +640,63 @@ export function getRecentClipsForPrediction(limit = 50): { id: string; content: 
   }));
 }
 
+
+// Work Context Detection
+export function getWorkContexts(limit = 50): WorkContext[] {
+  const rows = db.prepare("SELECT * FROM work_contexts ORDER BY last_active_at DESC LIMIT ?").all(limit) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    tags: JSON.parse(r.tags || "[]"),
+    sourceApps: JSON.parse(r.source_apps || "[]"),
+    clipIds: JSON.parse(r.clip_ids || "[]"),
+    startedAt: r.started_at,
+    lastActiveAt: r.last_active_at,
+    active: !!r.active,
+  }));
+}
+
+export function getActiveWorkContext(): WorkContext | null {
+  const row = db.prepare("SELECT * FROM work_contexts WHERE active = 1 ORDER BY last_active_at DESC LIMIT 1").get() as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    tags: JSON.parse(row.tags || "[]"),
+    sourceApps: JSON.parse(row.source_apps || "[]"),
+    clipIds: JSON.parse(row.clip_ids || "[]"),
+    startedAt: row.started_at,
+    lastActiveAt: row.last_active_at,
+    active: true,
+  };
+}
+
+export function saveWorkContext(ctx: WorkContext) {
+  db.prepare(`
+    INSERT OR REPLACE INTO work_contexts (id, name, tags, source_apps, clip_ids, started_at, last_active_at, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    ctx.id,
+    ctx.name,
+    JSON.stringify(ctx.tags || []),
+    JSON.stringify(ctx.sourceApps || []),
+    JSON.stringify(ctx.clipIds || []),
+    ctx.startedAt,
+    ctx.lastActiveAt,
+    ctx.active ? 1 : 0,
+  );
+}
+
+export function deactivateAllContexts() {
+  db.prepare("UPDATE work_contexts SET active = 0").run();
+}
+
+export function getClipsByContext(contextId: string): any[] {
+  const row = db.prepare("SELECT clip_ids FROM work_contexts WHERE id = ?").get(contextId) as any;
+  if (!row) return [];
+  const clipIds = JSON.parse(row.clip_ids || "[]");
+  return getClipsByIds(clipIds);
+}
 
 // Clipboard chains: save a detected chain as a collection
 export function saveChainAsCollection(id: string, name: string, clipIds: string[], chainType: string) {
