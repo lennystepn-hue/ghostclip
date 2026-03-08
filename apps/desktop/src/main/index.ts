@@ -14,7 +14,7 @@ import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnect
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
 import { extractFileInfo } from "./file-extractor";
-import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
+import { createFloatingWidget, toggleFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh, getDevices } from "./auth-client";
 import { getOAuthToken, getOAuthStatus, startOAuthFlow } from "./claude-oauth";
 import { autoUpdater } from "electron-updater";
@@ -617,8 +617,11 @@ app.whenReady().then(() => {
   // System tray
   createTray(mainWindow);
 
-  // Floating widget IPC (widget starts via tray menu, not auto)
+  // Clippy Assistent: IPC + auto-start if enabled
   setupWidgetIPC();
+  if (getSetting("floatingWidget", "true") !== "false") {
+    createFloatingWidget();
+  }
 
   // Autostart
   if (!is.dev) {
@@ -1093,7 +1096,15 @@ app.whenReady().then(() => {
 
   // IPC: Settings
   ipcMain.handle("settings:get", () => getAllSettings());
-  ipcMain.handle("settings:update", (_e, key: string, value: string) => { setSetting(key, value); return true; });
+  ipcMain.handle("settings:update", (_e, key: string, value: string) => {
+    setSetting(key, value);
+    // React to setting changes that affect main process
+    if (key === "floatingWidget") {
+      if (value === "true") createFloatingWidget();
+      else toggleFloatingWidget(); // hides if visible
+    }
+    return true;
+  });
 
   // IPC: Open URL in default browser (only http/https allowed)
   ipcMain.handle("shell:openUrl", (_e, url: string) => {
