@@ -12,6 +12,7 @@ import { ReplyPanelView } from "./views/ReplyPanelView";
 import { AccountView } from "./views/AccountView";
 import { FloatingWidget } from "./views/FloatingWidget";
 import { PinBoardView } from "./views/PinBoardView";
+import { TopicsView } from "./views/TopicsView";
 import { CaptureToast } from "./components/CaptureToast";
 import { CommandPalette } from "./views/CommandPalette";
 import { TemplatePicker } from "./views/TemplatePicker";
@@ -124,6 +125,7 @@ export function App() {
       case "collections": return <CollectionsView />;
       case "smart": return <SmartView />;
       case "chat": return <ChatView />;
+      case "topics": return <TopicsView />;
       case "analytics": return <AnalyticsView />;
       case "settings": return <SettingsView />;
       case "account": return <AccountView />;

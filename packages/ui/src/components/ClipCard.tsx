@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { motion } from "framer-motion";
-import { Copy, Pin, Archive, Trash2, MessageSquare, Image, Link, FileText, Code } from "lucide-react";
+import { Copy, Pin, Archive, Trash2, MessageSquare, Image, Link, FileText, Code, File } from "lucide-react";
 import { cn } from "../utils";
 
 interface ClipCardProps {
@@ -28,7 +28,7 @@ const typeIcons = {
   text: FileText,
   image: Image,
   url: Link,
-  file: Code,
+  file: File,
 };
 
 export function ClipCard({

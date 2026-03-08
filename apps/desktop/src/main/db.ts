@@ -61,8 +61,41 @@ export function initDb() {
     // Column already exists
   }
 
+  // Migration: add file_metadata column for file clip metadata (JSON)
+  try {
+    db.exec(`ALTER TABLE clips ADD COLUMN file_metadata TEXT DEFAULT NULL`);
+  } catch {
+    // Column already exists
+  }
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at DESC)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_clips_hash ON clips(content_hash)`);
+
+  // Topics table for AI Knowledge Base
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS topics (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      icon TEXT DEFAULT '📂',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  // Clip-to-topic many-to-many relationship
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS clip_topics (
+      clip_id TEXT NOT NULL,
+      topic_id TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 0.0,
+      assigned_at TEXT NOT NULL,
+      PRIMARY KEY (clip_id, topic_id)
+    )
+  `);
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_clip_topics_topic ON clip_topics(topic_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_clip_topics_clip ON clip_topics(clip_id)`);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -170,8 +203,8 @@ export function initDb() {
 
 export function insertClip(clip: any) {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO clips (id, type, content, content_hash, summary, tags, mood, actions, sensitivity, source_app, pinned, archived, enriched, image_data, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO clips (id, type, content, content_hash, summary, tags, mood, actions, sensitivity, source_app, pinned, archived, enriched, image_data, file_metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     clip.id,
@@ -188,13 +221,14 @@ export function insertClip(clip: any) {
     clip.archived ? 1 : 0,
     clip.enriched ? 1 : 0,
     clip.imageData || null,
+    clip.fileMetadata ? JSON.stringify(clip.fileMetadata) : null,
     clip.createdAt,
   );
 }
 
 export function updateClip(clip: any) {
   const stmt = db.prepare(`
-    UPDATE clips SET content=?, summary=?, tags=?, mood=?, actions=?, sensitivity=?, pinned=?, archived=?, enriched=?, image_data=?
+    UPDATE clips SET content=?, summary=?, tags=?, mood=?, actions=?, sensitivity=?, pinned=?, archived=?, enriched=?, image_data=?, file_metadata=?
     WHERE id=?
   `);
   stmt.run(
@@ -208,6 +242,7 @@ export function updateClip(clip: any) {
     clip.archived ? 1 : 0,
     clip.enriched ? 1 : 0,
     clip.imageData || null,
+    clip.fileMetadata ? JSON.stringify(clip.fileMetadata) : null,
     clip.id,
   );
 }
@@ -223,6 +258,7 @@ export function getClipCount(): number {
 }
 
 export function deleteClipById(id: string) {
+  db.prepare(`DELETE FROM clip_topics WHERE clip_id = ?`).run(id);
   db.prepare(`DELETE FROM clips WHERE id = ?`).run(id);
 }
 
@@ -230,9 +266,9 @@ export function searchClips(query: string): any[] {
   const q = `%${query}%`;
   const rows = db.prepare(`
     SELECT * FROM clips
-    WHERE summary LIKE ? OR tags LIKE ? OR content LIKE ?
+    WHERE summary LIKE ? OR tags LIKE ? OR content LIKE ? OR file_metadata LIKE ?
     ORDER BY created_at DESC LIMIT 100
-  `).all(q, q, q) as ClipRow[];
+  `).all(q, q, q, q) as ClipRow[];
   return rows.map(rowToClip);
 }
 
@@ -242,6 +278,7 @@ export function hashExists(hash: string): boolean {
 }
 
 function rowToClip(row: ClipRow) {
+  const fileMetaRaw = (row as any).file_metadata;
   return {
     id: row.id,
     type: row.type,
@@ -257,6 +294,7 @@ function rowToClip(row: ClipRow) {
     archived: !!row.archived,
     enriched: !!row.enriched,
     imageData: (row as any).image_data || null,
+    fileMetadata: fileMetaRaw ? JSON.parse(fileMetaRaw) : null,
     createdAt: row.created_at,
   };
 }
@@ -710,4 +748,135 @@ export function getClipsByIds(ids: string[]): any[] {
   const clipMap = new Map(rows.map(r => [r.id, rowToClip(r)]));
   // Return in the order of the input IDs
   return capped.map(id => clipMap.get(id)).filter(Boolean);
+}
+
+// ── Topics (AI Knowledge Base) ──────────────────────────────────────────────
+
+export function getTopics(): any[] {
+  const rows = db.prepare(`
+    SELECT t.*, COUNT(ct.clip_id) as clip_count
+    FROM topics t
+    LEFT JOIN clip_topics ct ON t.id = ct.topic_id
+    GROUP BY t.id
+    ORDER BY t.updated_at DESC
+  `).all() as any[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    clipCount: r.clip_count || 0,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
+}
+
+export function createTopic(id: string, name: string, description: string, icon: string) {
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO topics (id, name, description, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+    id, name, description, icon, now, now,
+  );
+}
+
+export function updateTopic(id: string, name: string, description: string, icon: string) {
+  db.prepare("UPDATE topics SET name = ?, description = ?, icon = ?, updated_at = ? WHERE id = ?").run(
+    name, description, icon, new Date().toISOString(), id,
+  );
+}
+
+export function deleteTopic(id: string) {
+  db.prepare("DELETE FROM clip_topics WHERE topic_id = ?").run(id);
+  db.prepare("DELETE FROM topics WHERE id = ?").run(id);
+}
+
+export function assignClipToTopic(clipId: string, topicId: string, confidence: number) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT OR REPLACE INTO clip_topics (clip_id, topic_id, confidence, assigned_at)
+    VALUES (?, ?, ?, ?)
+  `).run(clipId, topicId, confidence, now);
+  // Update topic's updated_at
+  db.prepare("UPDATE topics SET updated_at = ? WHERE id = ?").run(now, topicId);
+}
+
+export function removeClipFromTopic(clipId: string, topicId: string) {
+  db.prepare("DELETE FROM clip_topics WHERE clip_id = ? AND topic_id = ?").run(clipId, topicId);
+}
+
+export function getClipsByTopic(topicId: string): any[] {
+  const rows = db.prepare(`
+    SELECT c.*, ct.confidence as topic_confidence
+    FROM clips c
+    JOIN clip_topics ct ON c.id = ct.clip_id
+    WHERE ct.topic_id = ?
+    ORDER BY ct.confidence DESC, c.created_at DESC
+    LIMIT 200
+  `).all(topicId) as any[];
+  return rows.map(r => ({
+    ...rowToClip(r),
+    topicConfidence: (r as any).topic_confidence,
+  }));
+}
+
+export function getTopicsForClip(clipId: string): any[] {
+  const rows = db.prepare(`
+    SELECT t.*, ct.confidence
+    FROM topics t
+    JOIN clip_topics ct ON t.id = ct.topic_id
+    WHERE ct.clip_id = ?
+    ORDER BY ct.confidence DESC
+  `).all(clipId) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    confidence: r.confidence,
+  }));
+}
+
+export function getTopicNames(): string[] {
+  const rows = db.prepare("SELECT name FROM topics ORDER BY updated_at DESC").all() as any[];
+  return rows.map(r => r.name);
+}
+
+export function findTopicByName(name: string): any | null {
+  const row = db.prepare("SELECT * FROM topics WHERE LOWER(name) = LOWER(?)").get(name) as any;
+  if (!row) return null;
+  return { id: row.id, name: row.name, description: row.description, icon: row.icon };
+}
+
+export function mergeTopics(keepId: string, mergeId: string) {
+  // Move all clip assignments from mergeId to keepId
+  const assignments = db.prepare("SELECT clip_id, confidence FROM clip_topics WHERE topic_id = ?").all(mergeId) as any[];
+  for (const a of assignments) {
+    db.prepare(`
+      INSERT OR REPLACE INTO clip_topics (clip_id, topic_id, confidence, assigned_at)
+      VALUES (?, ?, ?, ?)
+    `).run(a.clip_id, keepId, a.confidence, new Date().toISOString());
+  }
+  // Delete the merged topic
+  deleteTopic(mergeId);
+}
+
+export function searchTopics(query: string): any[] {
+  const q = `%${query}%`;
+  const rows = db.prepare(`
+    SELECT t.*, COUNT(ct.clip_id) as clip_count
+    FROM topics t
+    LEFT JOIN clip_topics ct ON t.id = ct.topic_id
+    WHERE t.name LIKE ? OR t.description LIKE ?
+    GROUP BY t.id
+    ORDER BY clip_count DESC
+    LIMIT 50
+  `).all(q, q) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    icon: r.icon,
+    clipCount: r.clip_count || 0,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
 }

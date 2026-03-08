@@ -84,3 +84,28 @@ export interface ReplySuggestion {
   tone: string;
   confidence: number;
 }
+
+export interface FileMetadata {
+  filename: string;
+  extension: string;
+  size: number;
+  path: string;
+  mimeType: string;
+}
+
+export interface Topic {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  clipCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClipTopic {
+  clipId: string;
+  topicId: string;
+  confidence: number;
+  assignedAt: string;
+}

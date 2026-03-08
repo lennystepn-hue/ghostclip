@@ -10,6 +10,7 @@ interface ClipboardEntry {
   contentHash: string;
   timestamp: number;
   sourceApp: string | null;
+  filePaths?: string[]; // file paths when type is "file"
 }
 
 type ClipboardChangeCallback = (entry: ClipboardEntry) => void;
@@ -40,7 +41,9 @@ export class ClipboardWatcher {
 
   private check() {
     try {
-      const currentHash = this.getCurrentHash();
+      // Cache file paths to avoid double read and race conditions
+      const cachedFilePaths = this.readFilePaths();
+      const currentHash = this.getCurrentHash(cachedFilePaths);
       if (!currentHash) return;
 
       // Same content as last check — skip
@@ -50,7 +53,7 @@ export class ClipboardWatcher {
       this.lastTimestamp = Date.now();
 
       // Check if this content is already in DB (dedup)
-      const entry = this.buildEntry();
+      const entry = this.buildEntry(cachedFilePaths);
       if (entry && this.callback) {
         console.log(`[Watcher] New clip detected: ${entry.type} (${entry.content.slice(0, 60)}...)`);
         this.callback(entry);
@@ -60,7 +63,13 @@ export class ClipboardWatcher {
     }
   }
 
-  private getCurrentHash(): string {
+  private getCurrentHash(filePaths?: string[]): string {
+    // Check for copied files first (cross-platform)
+    if (filePaths === undefined) filePaths = this.readFilePaths();
+    if (filePaths.length > 0) {
+      return createHash("sha256").update(filePaths.join("\n")).digest("hex");
+    }
+
     const text = clipboard.readText();
     const image = clipboard.readImage();
 
@@ -78,7 +87,21 @@ export class ClipboardWatcher {
     return "";
   }
 
-  private buildEntry(): ClipboardEntry | null {
+  private buildEntry(filePaths?: string[]): ClipboardEntry | null {
+    // Check for copied files first (cross-platform)
+    if (filePaths === undefined) filePaths = this.readFilePaths();
+    if (filePaths.length > 0) {
+      const content = filePaths.join("\n");
+      return {
+        type: "file",
+        content,
+        contentHash: createHash("sha256").update(content).digest("hex"),
+        timestamp: Date.now(),
+        sourceApp: null,
+        filePaths,
+      };
+    }
+
     const text = clipboard.readText();
     const image = clipboard.readImage();
 
@@ -112,6 +135,75 @@ export class ClipboardWatcher {
     }
 
     return null;
+  }
+
+  /** Read copied file paths from the clipboard (cross-platform) */
+  private readFilePaths(): string[] {
+    try {
+      const platform = process.platform;
+
+      if (platform === "win32") {
+        // Windows: read file names via CF_HDROP format
+        const raw = clipboard.readBuffer("FileNameW");
+        if (raw && raw.length > 0) {
+          // FileNameW is null-terminated UTF-16LE strings
+          const decoded = raw.toString("utf16le");
+          const paths = decoded.split("\0").filter((p) => p.length > 0);
+          if (paths.length > 0 && paths.some((p) => /^[A-Z]:\\/i.test(p))) {
+            return paths;
+          }
+        }
+      } else if (platform === "darwin") {
+        // macOS: read public.file-url format
+        const raw = clipboard.read("public.file-url");
+        if (raw && raw.startsWith("file://")) {
+          try {
+            const filePath = decodeURIComponent(new URL(raw).pathname);
+            if (filePath) return [filePath];
+          } catch { /* ignore decode errors */ }
+        }
+        // Also try NSFilenamesPboardType (multiple files)
+        const text = clipboard.readText();
+        if (text && text.startsWith("/") && !text.includes("\n")) {
+          // Could be a file path from Finder — but only treat as file if
+          // the file-url format was also present, to avoid false positives
+        }
+      } else {
+        // Linux: check for x-special/gnome-copied-files or similar
+        const gnomeCopied = clipboard.readBuffer("x-special/gnome-copied-files");
+        if (gnomeCopied && gnomeCopied.length > 0) {
+          const content = gnomeCopied.toString("utf8");
+          // Format: "copy\nfile:///path1\nfile:///path2\n..."
+          const lines = content.split("\n").filter((l) => l.startsWith("file://"));
+          const paths = lines.map((l) => {
+            try {
+              return decodeURIComponent(new URL(l.trim()).pathname);
+            } catch {
+              return "";
+            }
+          }).filter((p) => p.length > 0);
+          if (paths.length > 0) return paths;
+        }
+
+        // KDE uses text/uri-list
+        const uriList = clipboard.readBuffer("text/uri-list");
+        if (uriList && uriList.length > 0) {
+          const content = uriList.toString("utf8");
+          const lines = content.split("\n").filter((l) => l.startsWith("file://"));
+          const paths = lines.map((l) => {
+            try {
+              return decodeURIComponent(new URL(l.trim()).pathname);
+            } catch {
+              return "";
+            }
+          }).filter((p) => p.length > 0);
+          if (paths.length > 0) return paths;
+        }
+      }
+    } catch (err: any) {
+      console.error("[Watcher] readFilePaths error:", err.message);
+    }
+    return [];
   }
 
   private detectType(text: string): ClipType {
