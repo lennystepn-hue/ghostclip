@@ -1,6 +1,6 @@
 {
   "name": "@ghostclip/desktop",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "AI-powered Clipboard Manager — smart tagging, vision OCR, encrypted sync",
   "author": {
@@ -43,14 +43,20 @@
     },
     "artifactName": "GhostClip-${version}-${arch}.${ext}",
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "resources/icon.png",
       "category": "Utility",
       "maintainer": "Lenny Enderle <lenny@ghostclip.app>",
       "executableName": "ghostclip"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "resources/icon.png",
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
@@ -60,7 +66,9 @@
       "notarize": false
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "resources/icon.png"
     },
     "nsis": {
