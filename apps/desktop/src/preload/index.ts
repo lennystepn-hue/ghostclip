@@ -73,6 +73,16 @@ const api = {
   createSmartCollection: (name: string, icon: string, rule: object) => ipcRenderer.invoke("collections:createSmart", name, icon, rule),
   getSmartCollectionClips: (collectionId: string) => ipcRenderer.invoke("collections:smartClips", collectionId),
 
+  // Clipboard Chains
+  detectChain: () => ipcRenderer.invoke("chains:detect"),
+  saveChain: (name: string, clipIds: string[], chainType: string) => ipcRenderer.invoke("chains:save", name, clipIds, chainType),
+  getChainClips: (clipIds: string[]) => ipcRenderer.invoke("chains:getClips", clipIds),
+  onChainDetected: (callback: (chain: any) => void) => {
+    const handler = (_event: any, chain: any) => callback(chain);
+    ipcRenderer.on("chain:detected", handler);
+    return () => ipcRenderer.removeListener("chain:detected", handler);
+  },
+
   // Templates
   getTemplates: () => ipcRenderer.invoke("templates:list"),
   createTemplate: (name: string, content: string, category: string) => ipcRenderer.invoke("templates:create", name, content, category),

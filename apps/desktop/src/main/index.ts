@@ -7,7 +7,7 @@ import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
 import { toggleQuickPanel } from "./quick-panel";
 import { notifyClipCaptured, notify } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
-import { computePredictions } from "@ghostclip/shared";
+import { computePredictions, detectChain } from "@ghostclip/shared";
 import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
@@ -55,6 +55,8 @@ import {
   getPasteSequences,
   getHourlyPatterns,
   getRecentClipsForPrediction,
+  saveChainAsCollection,
+  getClipsByIds,
 } from "./db";
 
 // no-sandbox must be set via CLI flag or electron-flags.conf for root users
@@ -73,6 +75,9 @@ let isQuitting = false;
 
 // Predictive paste: track last pasted clip for sequence learning
 let lastPastedClipId: string | null = null;
+
+// Chain detection: deduplication — track last detected chain's clip IDs
+let lastDetectedChainIds: string[] = [];
 
 // OAuth token is now managed by claude-oauth.ts module
 
@@ -266,6 +271,24 @@ app.whenReady().then(() => {
     mainWindow?.webContents.send("clip:new", clip);
     sendToWidget("clip:new", clip);
     notifyClipCaptured(clip.summary, clip.type);
+
+    // Smart Clipboard Chains: detect copy sequences
+    try {
+      const recentForChain = getRecentClipsForPrediction(20);
+      const chain = detectChain(recentForChain);
+      if (chain && chain.clipIds.length >= 2) {
+        // Deduplicate: only emit if the chain differs from the last detected one
+        const newIds = chain.clipIds.join(",");
+        const lastIds = lastDetectedChainIds.join(",");
+        if (newIds !== lastIds) {
+          lastDetectedChainIds = chain.clipIds;
+          mainWindow?.webContents.send("chain:detected", chain);
+          console.log(`Chain detected: "${chain.suggestedName}" (${chain.chainType}, ${chain.clipIds.length} clips, ${chain.confidence})`);
+        }
+      }
+    } catch (err: any) {
+      console.error("Chain detection failed:", err.message);
+    }
 
     // For URLs: fetch page content for richer AI analysis
     let urlMeta: { title: string; description: string; text: string } | null = null;
@@ -961,6 +984,31 @@ app.whenReady().then(() => {
       hourlyPatterns: hourlyPats,
       maxResults: 5,
     });
+  });
+
+  // IPC: Detect clipboard chain from recent clips
+  ipcMain.handle("chains:detect", () => {
+    const recentClips = getRecentClipsForPrediction(20);
+    return detectChain(recentClips);
+  });
+
+  // IPC: Save a detected chain as a collection
+  ipcMain.handle("chains:save", (_e, name: string, clipIds: string[], chainType: string) => {
+    if (!Array.isArray(clipIds) || clipIds.length === 0) {
+      throw new Error("clipIds must be a non-empty array");
+    }
+    const validTypes = ["template", "collection", "chain"];
+    if (!validTypes.includes(chainType)) {
+      throw new Error("chainType must be one of: template, collection, chain");
+    }
+    const id = crypto.randomUUID();
+    saveChainAsCollection(id, name, clipIds, chainType);
+    return { id, name, clipIds, chainType };
+  });
+
+  // IPC: Get clips for a chain (in order)
+  ipcMain.handle("chains:getClips", (_e, clipIds: string[]) => {
+    return getClipsByIds(clipIds);
   });
 
   // IPC: Clear all clips (panic button)
