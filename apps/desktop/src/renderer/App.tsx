@@ -24,6 +24,7 @@ export function App() {
 
   const [activeView, setActiveView] = useState("clips");
   const [clipCount, setClipCount] = useState(0);
+  const [currentContext, setCurrentContext] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -45,6 +46,26 @@ export function App() {
     const cleanup = api.onClipNew(() => updateCounts());
     return cleanup;
   }, [isQuickPanel, isReplyPanel, isFloatingWidget, updateCounts]);
+
+  // Load and listen for work context changes
+  useEffect(() => {
+    if (isQuickPanel || isReplyPanel || isFloatingWidget) return;
+    const api = (window as any).ghostclip;
+    if (!api?.getActiveContext) return;
+    api.getActiveContext().then((ctx: any) => {
+      if (ctx?.name) setCurrentContext(ctx.name);
+    });
+    const cleanupUpdated = api.onContextUpdated?.((ctx: any) => {
+      if (ctx?.name) setCurrentContext(ctx.name);
+    });
+    const cleanupSwitched = api.onContextSwitched?.((ctx: any) => {
+      if (ctx?.name) setCurrentContext(ctx.name);
+    });
+    return () => {
+      cleanupUpdated?.();
+      cleanupSwitched?.();
+    };
+  }, [isQuickPanel, isReplyPanel, isFloatingWidget]);
 
   // Global Ctrl+K shortcut to open command palette
   useEffect(() => {
@@ -149,6 +170,7 @@ export function App() {
           activeItem={activeView}
           onItemClick={handleViewChange}
           clipCount={clipCount}
+          currentContext={currentContext}
         />
       </div>
 

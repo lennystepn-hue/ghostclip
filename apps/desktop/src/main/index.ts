@@ -7,7 +7,8 @@ import { registerHotkeys, unregisterHotkeys } from "./hotkeys";
 import { toggleQuickPanel } from "./quick-panel";
 import { notifyClipCaptured, notify } from "./notifications";
 import { enrichClip } from "@ghostclip/ai-client";
-import { computePredictions, detectChain } from "@ghostclip/shared";
+import { computePredictions, detectChain, detectContexts, fitsCurrentContext, getDominantTags, getDominantApps, generateContextName } from "@ghostclip/shared";
+import type { WorkContext, ContextClip } from "@ghostclip/shared";
 import { initEncryption, encryptContent, isEncryptionReady } from "./encryption";
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
@@ -57,6 +58,11 @@ import {
   getRecentClipsForPrediction,
   saveChainAsCollection,
   getClipsByIds,
+  getWorkContexts,
+  getActiveWorkContext,
+  saveWorkContext,
+  deactivateAllContexts,
+  getClipsByContext,
 } from "./db";
 
 // no-sandbox must be set via CLI flag or electron-flags.conf for root users
@@ -78,6 +84,9 @@ let lastPastedClipId: string | null = null;
 
 // Chain detection: deduplication — track last detected chain's clip IDs
 let lastDetectedChainIds: string[] = [];
+
+// Work context detection: current context cache
+let currentWorkContext: WorkContext | null = null;
 
 // OAuth token is now managed by claude-oauth.ts module
 
@@ -194,6 +203,12 @@ app.whenReady().then(() => {
   // Initialize SQLite database
   initDb();
   console.log("SQLite database initialized");
+
+  // Load active work context from DB
+  currentWorkContext = getActiveWorkContext();
+  if (currentWorkContext) {
+    console.log(`Loaded active work context: "${currentWorkContext.name}"`);
+  }
 
   // Initialize encryption (if vault key exists)
   const encryptionReady = initEncryption();
@@ -400,6 +415,74 @@ app.whenReady().then(() => {
         const embedding = await generateEmbedding(embeddingText);
         if (embedding) {
           updateClipEmbedding(clip.id, embedding);
+        }
+
+        // Work context detection: update context after enrichment
+        try {
+          const contextClip: ContextClip = {
+            id: clip.id,
+            tags: clip.tags || [],
+            sourceApp: clip.sourceApp,
+            mood: clip.mood,
+            summary: clip.summary,
+            createdAt: clip.createdAt,
+          };
+
+          if (currentWorkContext) {
+            const lastActiveAt = currentWorkContext.lastActiveAt;
+            if (fitsCurrentContext(contextClip, currentWorkContext, lastActiveAt)) {
+              // Add clip to current context
+              currentWorkContext.clipIds.push(clip.id);
+              currentWorkContext.lastActiveAt = clip.createdAt;
+              // Update tags if new dominant ones emerge
+              const recentForCtx = getRecentClipsForPrediction(30);
+              const ctxClips = recentForCtx.filter(c => currentWorkContext!.clipIds.includes(c.id));
+              const newTags = getDominantTags(ctxClips);
+              const newApps = getDominantApps(ctxClips);
+              if (newTags.length > 0) {
+                currentWorkContext.tags = newTags;
+                currentWorkContext.name = generateContextName(newTags, newApps);
+              }
+              currentWorkContext.sourceApps = newApps;
+              saveWorkContext(currentWorkContext);
+              mainWindow?.webContents.send("context:updated", currentWorkContext);
+            } else {
+              // Context switch: deactivate current, start new
+              deactivateAllContexts();
+              const newCtx: WorkContext = {
+                id: `ctx-${clip.id}`,
+                name: clip.tags?.length > 0 ? clip.tags[0].charAt(0).toUpperCase() + clip.tags[0].slice(1) : "Work Session",
+                tags: clip.tags || [],
+                sourceApps: clip.sourceApp ? [clip.sourceApp] : [],
+                clipIds: [clip.id],
+                startedAt: clip.createdAt,
+                lastActiveAt: clip.createdAt,
+                active: true,
+              };
+              saveWorkContext(newCtx);
+              currentWorkContext = newCtx;
+              mainWindow?.webContents.send("context:switched", newCtx);
+              console.log(`Context switched to: "${newCtx.name}"`);
+            }
+          } else {
+            // First clip or no active context — start a new one
+            const newCtx: WorkContext = {
+              id: `ctx-${clip.id}`,
+              name: clip.tags?.length > 0 ? clip.tags[0].charAt(0).toUpperCase() + clip.tags[0].slice(1) : "Work Session",
+              tags: clip.tags || [],
+              sourceApps: clip.sourceApp ? [clip.sourceApp] : [],
+              clipIds: [clip.id],
+              startedAt: clip.createdAt,
+              lastActiveAt: clip.createdAt,
+              active: true,
+            };
+            deactivateAllContexts();
+            saveWorkContext(newCtx);
+            currentWorkContext = newCtx;
+            mainWindow?.webContents.send("context:updated", newCtx);
+          }
+        } catch (err: any) {
+          console.error("Work context detection failed:", err.message);
         }
 
         // Auto-detect messages: if mood suggests communication, generate reply suggestions
@@ -1009,6 +1092,24 @@ app.whenReady().then(() => {
   // IPC: Get clips for a chain (in order)
   ipcMain.handle("chains:getClips", (_e, clipIds: string[]) => {
     return getClipsByIds(clipIds);
+  });
+
+  // IPC: Work Context Detection
+  ipcMain.handle("context:active", () => getActiveWorkContext());
+  ipcMain.handle("context:list", () => getWorkContexts());
+  ipcMain.handle("context:clips", (_e, contextId: string) => getClipsByContext(contextId));
+  ipcMain.handle("context:detect", () => {
+    const recentClips = getRecentClipsForPrediction(100);
+    const contexts = detectContexts(recentClips);
+    // Persist detected contexts
+    deactivateAllContexts();
+    for (const ctx of contexts) {
+      saveWorkContext(ctx);
+    }
+    if (contexts.length > 0) {
+      currentWorkContext = contexts[contexts.length - 1];
+    }
+    return contexts;
   });
 
   // IPC: Clear all clips (panic button)

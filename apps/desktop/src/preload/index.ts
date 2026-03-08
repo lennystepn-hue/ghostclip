@@ -83,6 +83,22 @@ const api = {
     return () => ipcRenderer.removeListener("chain:detected", handler);
   },
 
+  // Work Context Detection
+  getActiveContext: () => ipcRenderer.invoke("context:active"),
+  getContexts: () => ipcRenderer.invoke("context:list"),
+  getContextClips: (contextId: string) => ipcRenderer.invoke("context:clips", contextId),
+  detectContexts: () => ipcRenderer.invoke("context:detect"),
+  onContextUpdated: (callback: (ctx: any) => void) => {
+    const handler = (_event: any, ctx: any) => callback(ctx);
+    ipcRenderer.on("context:updated", handler);
+    return () => ipcRenderer.removeListener("context:updated", handler);
+  },
+  onContextSwitched: (callback: (ctx: any) => void) => {
+    const handler = (_event: any, ctx: any) => callback(ctx);
+    ipcRenderer.on("context:switched", handler);
+    return () => ipcRenderer.removeListener("context:switched", handler);
+  },
+
   // Templates
   getTemplates: () => ipcRenderer.invoke("templates:list"),
   createTemplate: (name: string, content: string, category: string) => ipcRenderer.invoke("templates:create", name, content, category),

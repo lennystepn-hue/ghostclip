@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { cn } from "../utils";
-import { Ghost, Clipboard, Tag, FolderOpen, Wand2, MessageCircle, Archive, Settings, User, BarChart3, LayoutGrid } from "lucide-react";
+import { Ghost, Clipboard, Tag, FolderOpen, Wand2, MessageCircle, Archive, Settings, User, BarChart3, LayoutGrid, Briefcase } from "lucide-react";
 
 interface SidebarItem {
   id: string;
@@ -14,6 +14,7 @@ interface SidebarProps {
   onItemClick: (id: string) => void;
   clipCount?: number;
   className?: string;
+  currentContext?: string | null;
 }
 
 const mainItems: SidebarItem[] = [
@@ -67,7 +68,7 @@ function NavButton({ item, active, badge, onClick }: {
   );
 }
 
-export function Sidebar({ activeItem, onItemClick, clipCount, className }: SidebarProps) {
+export function Sidebar({ activeItem, onItemClick, clipCount, className, currentContext }: SidebarProps) {
   const getBadge = (id: string): number | undefined => {
     if (id === "clips" && clipCount) return clipCount;
     return undefined;
@@ -82,6 +83,19 @@ export function Sidebar({ activeItem, onItemClick, clipCount, className }: Sideb
         </div>
         <span className="font-semibold text-surface-900 text-sm tracking-tight">GhostClip</span>
       </div>
+
+      {/* Work Context Indicator */}
+      {currentContext && (
+        <div className="mx-2 mb-3 px-2.5 py-2 rounded-lg bg-ghost-600/10 border border-ghost-600/15">
+          <div className="flex items-center gap-1.5 text-[10px] text-surface-600 font-medium uppercase tracking-wider mb-1">
+            <Briefcase className="w-3 h-3" />
+            Working on
+          </div>
+          <div className="text-xs text-ghost-300 font-medium truncate" title={currentContext}>
+            {currentContext}
+          </div>
+        </div>
+      )}
 
       {/* Main nav */}
       <nav className="flex-1 space-y-0.5">
