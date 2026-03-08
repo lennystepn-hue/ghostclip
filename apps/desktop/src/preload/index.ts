@@ -99,6 +99,22 @@ const api = {
     return () => ipcRenderer.removeListener("context:switched", handler);
   },
 
+  // Topics (AI Knowledge Base)
+  getTopics: () => ipcRenderer.invoke("topics:list"),
+  createTopic: (name: string, description: string, icon: string) => ipcRenderer.invoke("topics:create", name, description, icon),
+  updateTopic: (id: string, name: string, description: string, icon: string) => ipcRenderer.invoke("topics:update", id, name, description, icon),
+  deleteTopic: (id: string) => ipcRenderer.invoke("topics:delete", id),
+  getTopicClips: (topicId: string) => ipcRenderer.invoke("topics:clips", topicId),
+  getClipTopics: (clipId: string) => ipcRenderer.invoke("topics:forClip", clipId),
+  assignClipToTopic: (clipId: string, topicId: string) => ipcRenderer.invoke("topics:assignClip", clipId, topicId),
+  removeClipFromTopic: (clipId: string, topicId: string) => ipcRenderer.invoke("topics:removeClip", clipId, topicId),
+  mergeTopics: (keepId: string, mergeId: string) => ipcRenderer.invoke("topics:merge", keepId, mergeId),
+  searchTopics: (query: string) => ipcRenderer.invoke("topics:search", query),
+  onTopicClipAssigned: (callback: (data: { clipId: string; topicId: string; topicName: string }) => void) => {
+    ipcRenderer.on("topic:clipAssigned", (_event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners("topic:clipAssigned");
+  },
+
   // Templates
   getTemplates: () => ipcRenderer.invoke("templates:list"),
   createTemplate: (name: string, content: string, category: string) => ipcRenderer.invoke("templates:create", name, content, category),

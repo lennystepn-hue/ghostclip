@@ -19,6 +19,7 @@ const TRANSFORM_MODES = [
 function clipIcon(type: string | undefined): string {
   if (type === "url")   return "🔗";
   if (type === "image") return "🖼";
+  if (type === "file")  return "📎";
   return "📄";
 }
 

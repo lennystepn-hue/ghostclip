@@ -13,6 +13,7 @@ import { initEncryption, encryptContent, isEncryptionReady } from "./encryption"
 import { connectSync, emitClipNew, emitClipUpdate, emitClipDelete, isSyncConnected } from "./sync-client";
 import { showReplyPanel, createReplyPanel } from "./reply-panel";
 import { fetchUrlContent } from "./url-fetcher";
+import { extractFileInfo } from "./file-extractor";
 import { createFloatingWidget, setupWidgetIPC, sendToWidget } from "./floating-widget";
 import { getAuthState, register as authRegister, login as authLogin, logout as authLogout, startTokenRefresh, getDevices } from "./auth-client";
 import { getOAuthToken, getOAuthStatus, startOAuthFlow } from "./claude-oauth";
@@ -63,6 +64,18 @@ import {
   saveWorkContext,
   deactivateAllContexts,
   getClipsByContext,
+  getTopics,
+  createTopic,
+  updateTopic,
+  deleteTopic,
+  assignClipToTopic,
+  removeClipFromTopic,
+  getClipsByTopic,
+  getTopicsForClip,
+  getTopicNames,
+  findTopicByName,
+  mergeTopics,
+  searchTopics,
 } from "./db";
 
 // no-sandbox must be set via CLI flag or electron-flags.conf for root users
@@ -275,19 +288,43 @@ app.whenReady().then(() => {
   // Clipboard watcher
   const clipboardWatcher = new ClipboardWatcher();
   clipboardWatcher.start(async (entry) => {
+    // For file clips: extract file content and metadata
+    let fileMetadata: any = null;
+    let fileContent = entry.content;
+    let fileSummary = entry.content.slice(0, 100);
+
+    if (entry.type === "file" && entry.filePaths && entry.filePaths.length > 0) {
+      const extractResults = entry.filePaths
+        .map((fp) => extractFileInfo(fp))
+        .filter(Boolean);
+
+      if (extractResults.length > 0) {
+        // Store metadata for all files
+        fileMetadata = extractResults.map((r) => r!.metadata);
+        // Combine content from all files
+        fileContent = extractResults.map((r) => r!.content).join("\n\n---\n\n");
+        // Summary: list filenames
+        const filenames = extractResults.map((r) => r!.metadata.filename);
+        fileSummary = filenames.length === 1
+          ? filenames[0]
+          : `${filenames.length} files: ${filenames.join(", ")}`;
+      }
+    }
+
     // Create clip object immediately
     const clip = {
       id: crypto.randomUUID(),
       type: entry.type,
-      content: entry.type === "image" ? "[Bild]" : entry.content,
+      content: entry.type === "image" ? "[Bild]" : fileContent,
       contentHash: entry.contentHash,
-      summary: entry.type === "image" ? "Bild wird analysiert..." : entry.content.slice(0, 100),
+      summary: entry.type === "image" ? "Bild wird analysiert..." : fileSummary,
       tags: [] as string[],
       mood: null as string | null,
       actions: [] as any[],
       sensitivity: null as string | null,
       sourceApp: entry.sourceApp || lastActiveApp,
       imageData: entry.type === "image" ? entry.content : null,
+      fileMetadata,
       pinned: false,
       archived: false,
       createdAt: new Date().toISOString(),
@@ -497,6 +534,40 @@ app.whenReady().then(() => {
           }
         } catch (err: any) {
           console.error("Work context detection failed:", err.message);
+        }
+
+        // AI Topic Classification: assign clip to a topic (skip for sensitive clips)
+        if (clip.sensitivity === "critical" || clip.sensitivity === "high") {
+          console.log(`[Topics] Skipping classification for sensitive clip (${clip.sensitivity})`);
+        } else {
+          try {
+            const { classifyClipTopic } = await import("@ghostclip/ai-client");
+            const existingTopics = getTopicNames();
+            const topicResult = await classifyClipTopic({
+              content: clip.content.slice(0, 1500),
+              tags: clip.tags,
+              summary: clip.summary || "",
+              type: clip.type,
+              existingTopics,
+              ...creds,
+            });
+
+            if (topicResult && topicResult.confidence >= 0.7) {
+              let topic = findTopicByName(topicResult.topicName);
+              if (!topic) {
+                // Create new topic
+                const topicId = crypto.randomUUID();
+                createTopic(topicId, topicResult.topicName, topicResult.topicDescription || "", topicResult.topicIcon || "📂");
+                topic = { id: topicId, name: topicResult.topicName };
+                console.log(`[Topics] New topic created: "${topicResult.topicName}"`);
+              }
+              assignClipToTopic(clip.id, topic.id, topicResult.confidence);
+              console.log(`[Topics] Clip assigned to "${topicResult.topicName}" (${(topicResult.confidence * 100).toFixed(0)}%)`);
+              mainWindow?.webContents.send("topic:clipAssigned", { clipId: clip.id, topicId: topic.id, topicName: topic.name });
+            }
+          } catch (err: any) {
+            console.error("[Topics] Classification failed:", err.message);
+          }
         }
 
         // Auto-detect messages: if mood suggests communication, generate reply suggestions
@@ -1126,6 +1197,45 @@ app.whenReady().then(() => {
     return contexts;
   });
 
+  // ── IPC: Topics (AI Knowledge Base) ──────────────────────────────────────
+  ipcMain.handle("topics:list", () => getTopics());
+
+  ipcMain.handle("topics:create", (_e, name: string, description: string, icon: string) => {
+    const id = crypto.randomUUID();
+    createTopic(id, name, description, icon);
+    return { id, name, description, icon, clipCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  });
+
+  ipcMain.handle("topics:update", (_e, id: string, name: string, description: string, icon: string) => {
+    updateTopic(id, name, description, icon);
+    return true;
+  });
+
+  ipcMain.handle("topics:delete", (_e, id: string) => {
+    deleteTopic(id);
+    return true;
+  });
+
+  ipcMain.handle("topics:clips", (_e, topicId: string) => getClipsByTopic(topicId));
+
+  ipcMain.handle("topics:forClip", (_e, clipId: string) => getTopicsForClip(clipId));
+
+  ipcMain.handle("topics:assignClip", (_e, clipId: string, topicId: string) => {
+    assignClipToTopic(clipId, topicId, 1.0); // manual assignment = 100% confidence
+    return true;
+  });
+
+  ipcMain.handle("topics:removeClip", (_e, clipId: string, topicId: string) => {
+    removeClipFromTopic(clipId, topicId);
+    return true;
+  });
+
+  ipcMain.handle("topics:merge", (_e, keepId: string, mergeId: string) => {
+    mergeTopics(keepId, mergeId);
+    return true;
+  });
+
+  ipcMain.handle("topics:search", (_e, query: string) => searchTopics(query));
   // IPC: Clear all clips (panic button)
   ipcMain.handle("clips:clearAll", () => { clearAllClips(); return true; });
 
